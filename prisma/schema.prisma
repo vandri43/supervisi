@@ -1,0 +1,273 @@
+// Prisma Schema - Aplikasi Supervisi Guru
+// Pembelajaran Mendalam (BBM + 3M + Literasi + Numerasi)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================
+// ENUM
+// =============================================
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  GURU
+}
+
+enum StatusSiklus {
+  DRAFT
+  PRA_OBSERVASI
+  OBSERVASI
+  PASCA_SUPERVISI
+  SELESAI
+}
+
+enum Predikat {
+  KURANG
+  CUKUP
+  BAIK
+  SANGAT_BAIK
+}
+
+enum Semester {
+  GANJIL
+  GENAP
+}
+
+// =============================================
+// SEKOLAH
+// =============================================
+
+model Sekolah {
+  id          String   @id @default(cuid())
+  nama        String   @db.VarChar(255)
+  npsn        String?  @unique @db.VarChar(20)
+  alamat      String?  @db.Text
+  kecamatan   String?  @db.VarChar(100)
+  kabupaten   String?  @db.VarChar(100)
+  provinsi    String?  @db.VarChar(100)
+  telepon     String?  @db.VarChar(20)
+  email       String?  @db.VarChar(100)
+  aktif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  siklus      Siklus[]
+
+  @@map("sekolah")
+}
+
+// =============================================
+// USER
+// =============================================
+
+model User {
+  id          String   @id @default(cuid())
+  nama        String   @db.VarChar(255)
+  email       String   @unique @db.VarChar(255)
+  password    String   @db.VarChar(255)
+  role        Role     @default(GURU)
+  nip         String?  @db.VarChar(30)
+  mapel       String?  @db.VarChar(100)
+  jabatan     String?  @db.VarChar(100)
+  avatar      String?  @db.VarChar(500)
+  aktif       Boolean  @default(true)
+  sekolahId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sekolah     Sekolah? @relation(fields: [sekolahId], references: [id])
+
+  siklusAsSupervisor  Siklus[] @relation("supervisor")
+  siklusAsGuru        Siklus[] @relation("guru")
+
+  @@map("users")
+}
+
+// =============================================
+// SIKLUS SUPERVISI
+// =============================================
+
+model Siklus {
+  id                String       @id @default(cuid())
+  tahunAjaran       String       @db.VarChar(10)
+  semester          Semester
+  status            StatusSiklus @default(DRAFT)
+  kelas             String?      @db.VarChar(20)
+  mapel             String?      @db.VarChar(100)
+  topikPembelajaran String?      @db.VarChar(255)
+  tanggalMulai      DateTime?
+  tanggalSelesai    DateTime?
+  catatan           String?      @db.Text
+
+  supervisorId  String
+  guruId        String
+  sekolahId     String
+
+  supervisor    User    @relation("supervisor", fields: [supervisorId], references: [id])
+  guru          User    @relation("guru",       fields: [guruId],       references: [id])
+  sekolah       Sekolah @relation(fields: [sekolahId], references: [id])
+
+  praObservasi      PraObservasi?
+  observasiKelas    ObservasiKelas?
+  pascaSupervisi    PascaSupervisi?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("siklus")
+}
+
+// =============================================
+// PRA OBSERVASI
+// =============================================
+
+model PraObservasi {
+  id          String    @id @default(cuid())
+  siklusId    String    @unique
+  tanggal     DateTime?
+  totalSkor   Int       @default(0)
+  nilaiAkhir  Float     @default(0)
+  predikat    Predikat?
+  catatanUmum String?   @db.Text
+  selesai     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  siklus      Siklus         @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  indikator   PraIndikator[]
+  konferensi  KonferensiPra[]
+
+  @@map("pra_observasi")
+}
+
+model PraIndikator {
+  id              String  @id @default(cuid())
+  praObservasiId  String
+  komponen        String  @db.VarChar(5)
+  nomorIndikator  Int
+  deskripsi       String  @db.Text
+  skor            Int     @default(0)
+  catatan         String? @db.Text
+  tagPM           String? @db.VarChar(100)
+
+  praObservasi    PraObservasi @relation(fields: [praObservasiId], references: [id], onDelete: Cascade)
+
+  @@unique([praObservasiId, komponen, nomorIndikator])
+  @@map("pra_indikator")
+}
+
+model KonferensiPra {
+  id              String  @id @default(cuid())
+  praObservasiId  String
+  nomorPertanyaan Int
+  pertanyaan      String  @db.Text
+  jawaban         String? @db.Text
+
+  praObservasi    PraObservasi @relation(fields: [praObservasiId], references: [id], onDelete: Cascade)
+
+  @@unique([praObservasiId, nomorPertanyaan])
+  @@map("konferensi_pra")
+}
+
+// =============================================
+// OBSERVASI KELAS
+// =============================================
+
+model ObservasiKelas {
+  id          String    @id @default(cuid())
+  siklusId    String    @unique
+  tanggal     DateTime?
+  totalSkor   Int       @default(0)
+  skorMaks    Int       @default(176)
+  nilaiAkhir  Float     @default(0)
+  predikat    Predikat?
+  catatanUmum String?   @db.Text
+  selesai     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  siklus      Siklus               @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  indikator   ObservasiIndikator[]
+
+  @@map("observasi_kelas")
+}
+
+model ObservasiIndikator {
+  id               String  @id @default(cuid())
+  observasiKelasId String
+  komponen         String  @db.VarChar(5)
+  dimensi          String  @db.VarChar(30)
+  nomorIndikator   Int
+  deskripsi        String  @db.Text
+  skor             Int     @default(0)
+  catatan          String? @db.Text
+
+  observasiKelas   ObservasiKelas @relation(fields: [observasiKelasId], references: [id], onDelete: Cascade)
+
+  @@unique([observasiKelasId, komponen, nomorIndikator])
+  @@map("observasi_indikator")
+}
+
+// =============================================
+// PASCA SUPERVISI
+// =============================================
+
+model PascaSupervisi {
+  id          String    @id @default(cuid())
+  siklusId    String    @unique
+  tanggal     DateTime?
+  totalSkor   Int       @default(0)
+  nilaiAkhir  Float     @default(0)
+  predikat    Predikat?
+  catatanUmum String?   @db.Text
+  selesai     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  siklus      Siklus            @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  indikator   PascaIndikator[]
+  rtl         RencanaTindakLanjut[]
+
+  @@map("pasca_supervisi")
+}
+
+model PascaIndikator {
+  id               String  @id @default(cuid())
+  pascaSupervisiId String
+  komponen         String  @db.VarChar(30)
+  nomorIndikator   Int
+  deskripsi        String  @db.Text
+  skor             Int     @default(0)
+  catatan          String? @db.Text
+
+  pascaSupervisi   PascaSupervisi @relation(fields: [pascaSupervisiId], references: [id], onDelete: Cascade)
+
+  @@unique([pascaSupervisiId, komponen, nomorIndikator])
+  @@map("pasca_indikator")
+}
+
+model RencanaTindakLanjut {
+  id               String    @id @default(cuid())
+  pascaSupervisiId String
+  aspek            String    @db.VarChar(255)
+  temuan           String    @db.Text
+  rencana          String    @db.Text
+  target           String?   @db.VarChar(255)
+  deadline         DateTime?
+  statusMonitoring String    @default("BELUM")
+  hasilMonitoring  String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  pascaSupervisi   PascaSupervisi @relation(fields: [pascaSupervisiId], references: [id], onDelete: Cascade)
+
+  @@map("rencana_tindak_lanjut")
+}
