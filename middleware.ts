@@ -19,6 +19,10 @@ export default withAuth(
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
+    if (pathname.startsWith("/laporan") && token?.role !== "SUPERVISOR" && token?.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/unauthorized", req.url));
+    }
+
     return NextResponse.next();
   },
   {
@@ -34,5 +38,6 @@ export const config = {
     "/admin/:path*",
     "/supervisor/:path*",
     "/guru/:path*",
+    "/laporan/:path*",
   ],
 };

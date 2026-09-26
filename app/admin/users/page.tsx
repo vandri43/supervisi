@@ -1,48 +1,202 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
-import { Plus, Search, Pencil, Trash2, Users, ShieldCheck, GraduationCap, BookOpen, Eye, EyeOff } from "lucide-react";
+import {
+  Plus, Search, Pencil, Trash2, Users, ShieldCheck, GraduationCap, BookOpen,
+  Eye, EyeOff, Loader2, Upload, Download, FileSpreadsheet,
+} from "lucide-react";
 
 type Role = "ADMIN" | "SUPERVISOR" | "GURU";
 
-const usersData = [
-  { id: "1", nama: "Administrator", email: "admin@supervisi.id", role: "ADMIN" as Role, nip: "-", jabatan: "Administrator Sistem", sekolah: "-", mapel: "-", aktif: true },
-  { id: "2", nama: "Drs. Budi Santoso, M.Pd", email: "supervisor@supervisi.id", role: "SUPERVISOR" as Role, nip: "196501011990031001", jabatan: "Pengawas Sekolah", sekolah: "SMKN 1 Contoh", mapel: "-", aktif: true },
-  { id: "3", nama: "Siti Rahayu, S.Pd", email: "guru@supervisi.id", role: "GURU" as Role, nip: "198501012010012001", jabatan: "Guru Mapel", sekolah: "SMKN 1 Contoh", mapel: "DKV", aktif: true },
-  { id: "4", nama: "Ahmad Fauzi, S.T", email: "ahmad@supervisi.id", role: "GURU" as Role, nip: "199001012015011001", jabatan: "Guru Mapel", sekolah: "SMKN 1 Contoh", mapel: "TKJ", aktif: true },
-  { id: "5", nama: "Dewi Lestari, M.Pd", email: "dewi@supervisi.id", role: "GURU" as Role, nip: "198801012012012001", jabatan: "Guru Mapel", sekolah: "SMKN 2 Contoh", mapel: "B. Inggris", aktif: true },
-  { id: "6", nama: "Hendra Wijaya, S.Pd", email: "hendra@supervisi.id", role: "SUPERVISOR" as Role, nip: "197001012000031001", jabatan: "Pengawas Sekolah", sekolah: "SMKN 2 Contoh", mapel: "-", aktif: false },
-];
+interface UserRow {
+  id: string;
+  nama: string;
+  email: string;
+  role: Role;
+  nip: string | null;
+  mapel: string | null;
+  jabatan: string | null;
+  aktif: boolean;
+  sekolahId: string | null;
+  sekolahNama: string | null;
+}
+
+interface SekolahOption {
+  id: string;
+  nama: string;
+  npsn: string | null;
+}
+
+const emptyForm = {
+  nama: "",
+  email: "",
+  password: "",
+  role: "GURU" as Role,
+  nip: "",
+  jabatan: "",
+  mapel: "",
+  sekolahId: "",
+  aktif: true,
+};
 
 const roleConfig: Record<Role, { label: string; variant: BadgeVariant; icon: React.ElementType }> = {
-  ADMIN:      { label: "Admin",      variant: "danger",   icon: ShieldCheck },
-  SUPERVISOR: { label: "Supervisor", variant: "primary",  icon: GraduationCap },
-  GURU:       { label: "Guru",       variant: "info",     icon: BookOpen },
+  ADMIN:      { label: "Admin",      variant: "danger", icon: ShieldCheck },
+  SUPERVISOR: { label: "Supervisor", variant: "primary", icon: GraduationCap },
+  GURU:       { label: "Guru",       variant: "info",    icon: BookOpen },
 };
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<Role | "">("");
   const [showModal, setShowModal] = useState(false);
-  const [editData, setEditData] = useState<(typeof usersData)[0] | null>(null);
+  const [editData, setEditData] = useState<UserRow | null>(null);
+  const [form, setForm] = useState(emptyForm);
   const [showPass, setShowPass] = useState(false);
+  const [list, setList] = useState<UserRow[]>([]);
+  const [sekolahList, setSekolahList] = useState<SekolahOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const filtered = usersData.filter((u) => {
+  // Import Excel
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/users");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal memuat data pengguna");
+      setList(json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat data pengguna");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchSekolah = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sekolah");
+      const json = await res.json();
+      if (res.ok) setSekolahList(json);
+    } catch {
+      // dropdown sekolah tetap bisa dipakai tanpa daftar
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchSekolah();
+  }, [fetchUsers, fetchSekolah]);
+
+  const openAdd = () => {
+    setEditData(null);
+    setForm(emptyForm);
+    setError("");
+    setShowModal(true);
+  };
+
+  const openEdit = (u: UserRow) => {
+    setEditData(u);
+    setForm({
+      nama: u.nama,
+      email: u.email,
+      password: "",
+      role: u.role,
+      nip: u.nip ?? "",
+      jabatan: u.jabatan ?? "",
+      mapel: u.mapel ?? "",
+      sekolahId: u.sekolahId ?? "",
+      aktif: u.aktif,
+    });
+    setError("");
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(editData ? `/api/users/${editData.id}` : "/api/users", {
+        method: editData ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menyimpan pengguna");
+      setShowModal(false);
+      fetchUsers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan pengguna");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (u: UserRow) => {
+    if (!confirm(`Hapus pengguna "${u.nama}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDeletingId(u.id);
+    try {
+      const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menghapus pengguna");
+      fetchUsers();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal menghapus pengguna");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ---- Excel ----
+  const downloadExcel = (mode: "template" | "export") => {
+    window.open(`/api/users/excel?mode=${mode}`, "_blank");
+  };
+
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/users/excel", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok && !json.summary) throw new Error(json.error || "Import gagal");
+      setImportResult(
+        `${json.summary}${json.errors?.length ? "\n" + json.errors.join("\n") : ""}`
+      );
+      fetchUsers();
+    } catch (e) {
+      setImportResult(e instanceof Error ? e.message : "Import gagal");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const filtered = list.filter((u) => {
+    const q = search.toLowerCase();
     const matchSearch =
-      u.nama.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.nip.includes(search);
+      u.nama.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.nip ?? "").includes(search);
     const matchRole = filterRole ? u.role === filterRole : true;
     return matchSearch && matchRole;
   });
 
   const counts = {
-    total: usersData.length,
-    admin: usersData.filter((u) => u.role === "ADMIN").length,
-    supervisor: usersData.filter((u) => u.role === "SUPERVISOR").length,
-    guru: usersData.filter((u) => u.role === "GURU").length,
+    total: list.length,
+    admin: list.filter((u) => u.role === "ADMIN").length,
+    supervisor: list.filter((u) => u.role === "SUPERVISOR").length,
+    guru: list.filter((u) => u.role === "GURU").length,
   };
 
   return (
@@ -97,15 +251,60 @@ export default function UsersPage() {
                 className="bg-transparent text-sm outline-none w-40 text-gray-600 placeholder-gray-400"
               />
             </div>
+            {/* Import / Export Excel */}
             <button
-              onClick={() => { setEditData(null); setShowModal(true); }}
-              className="btn-primary"
+              onClick={() => downloadExcel("template")}
+              className="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+              title="Unduh template Excel untuk import"
             >
+              <FileSpreadsheet className="w-4 h-4" />
+              Template
+            </button>
+            <label
+              className="btn bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 cursor-pointer"
+              title="Import pengguna dari file Excel"
+            >
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {importing ? "Mengimpor..." : "Import"}
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xlsm"
+                className="hidden"
+                disabled={importing}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImport(f);
+                }}
+              />
+            </label>
+            <button
+              onClick={() => downloadExcel("export")}
+              className="btn bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+              title="Unduh semua data pengguna (.xlsx)"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button onClick={openAdd} className="btn-primary">
               <Plus className="w-4 h-4" />
               Tambah Pengguna
             </button>
           </div>
         </div>
+
+        {importResult && (
+          <div className="mx-6 mt-4 px-4 py-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs whitespace-pre-line flex items-start justify-between gap-3">
+            <span>{importResult}</span>
+            <button onClick={() => setImportResult(null)} className="text-indigo-400 hover:text-indigo-600 font-bold">✕</button>
+          </div>
+        )}
+
+        {error && !showModal && (
+          <div className="mx-6 mt-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+            {error}
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="table-argon">
@@ -122,64 +321,81 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => {
-                const rc = roleConfig[u.role];
-                const Icon = rc.icon;
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                          style={{ background: "linear-gradient(87deg, #5e72e4 0, #825ee4 100%)" }}
-                        >
-                          {u.nama.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">{u.nama}</p>
-                          <p className="text-xs text-gray-400">{u.jabatan}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-xs text-gray-500">{u.email}</td>
-                    <td>
-                      <Badge variant={rc.variant as BadgeVariant}>
-                        <Icon className="w-3 h-3 mr-1" />
-                        {rc.label}
-                      </Badge>
-                    </td>
-                    <td className="text-xs text-gray-400 font-mono">{u.nip}</td>
-                    <td className="text-xs text-gray-500">{u.sekolah}</td>
-                    <td className="text-xs text-gray-500">{u.mapel}</td>
-                    <td>
-                      <Badge variant={u.aktif ? "success" : "default"}>
-                        {u.aktif ? "Aktif" : "Nonaktif"}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => { setEditData(u); setShowModal(true); }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-indigo-500 hover:bg-indigo-50"
-                          title="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filtered.length === 0 && (
+              {loading && (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-gray-400">
-                    Tidak ada pengguna ditemukan
+                    <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
+                    Memuat data pengguna...
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                filtered.map((u) => {
+                  const rc = roleConfig[u.role];
+                  const Icon = rc.icon;
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                            style={{ background: "linear-gradient(87deg, #5e72e4 0, #825ee4 100%)" }}
+                          >
+                            {u.nama.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-700">{u.nama}</p>
+                            <p className="text-xs text-gray-400">{u.jabatan ?? "-"}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-xs text-gray-500">{u.email}</td>
+                      <td>
+                        <Badge variant={rc.variant}>
+                          <Icon className="w-3 h-3 mr-1" />
+                          {rc.label}
+                        </Badge>
+                      </td>
+                      <td className="text-xs text-gray-400 font-mono">{u.nip ?? "-"}</td>
+                      <td className="text-xs text-gray-500">{u.sekolahNama ?? "-"}</td>
+                      <td className="text-xs text-gray-500">{u.mapel ?? "-"}</td>
+                      <td>
+                        <Badge variant={u.aktif ? "success" : "default"}>
+                          {u.aktif ? "Aktif" : "Nonaktif"}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEdit(u)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-indigo-500 hover:bg-indigo-50"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u)}
+                            disabled={deletingId === u.id}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 disabled:opacity-50"
+                            title="Hapus"
+                          >
+                            {deletingId === u.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-10 text-gray-400">
+                    {list.length === 0
+                      ? "Belum ada pengguna. Klik \"Tambah Pengguna\" atau import dari Excel."
+                      : "Tidak ada pengguna ditemukan"}
                   </td>
                 </tr>
               )}
@@ -192,45 +408,74 @@ export default function UsersPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in max-h-[90vh] overflow-y-auto">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in max-h-[90vh] overflow-y-auto"
+          >
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-gray-800 font-bold">
                 {editData ? "Edit Pengguna" : "Tambah Pengguna"}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+              <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
             </div>
             <div className="p-6 space-y-4">
+              {error && (
+                <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+                  {error}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="form-label">Nama Lengkap</label>
-                  <input className="form-input" defaultValue={editData?.nama} placeholder="Nama lengkap dengan gelar" />
+                  <label className="form-label">Nama Lengkap *</label>
+                  <input
+                    className="form-input"
+                    required
+                    value={form.nama}
+                    onChange={(e) => setForm({ ...form, nama: e.target.value })}
+                    placeholder="Nama lengkap dengan gelar"
+                  />
                 </div>
                 <div className="col-span-2">
-                  <label className="form-label">Email</label>
-                  <input type="email" className="form-input" defaultValue={editData?.email} placeholder="email@example.com" />
+                  <label className="form-label">Email *</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    required
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="email@example.com"
+                  />
                 </div>
-                {!editData && (
-                  <div className="col-span-2">
-                    <label className="form-label">Password</label>
-                    <div className="relative">
-                      <input
-                        type={showPass ? "text" : "password"}
-                        className="form-input pr-10"
-                        placeholder="Minimal 8 karakter"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(!showPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      >
-                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+                <div className="col-span-2">
+                  <label className="form-label">
+                    Password {editData ? "(kosongkan jika tidak diubah)" : "*"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? "text" : "password"}
+                      className="form-input pr-10"
+                      required={!editData}
+                      minLength={editData ? 0 : 8}
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      placeholder={editData ? "Biarkan kosong = tidak diubah" : "Minimal 8 karakter"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                )}
+                </div>
                 <div>
                   <label className="form-label">Role</label>
-                  <select className="form-select" defaultValue={editData?.role}>
+                  <select
+                    className="form-select"
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+                  >
                     <option value="GURU">Guru</option>
                     <option value="SUPERVISOR">Supervisor</option>
                     <option value="ADMIN">Admin</option>
@@ -238,37 +483,68 @@ export default function UsersPage() {
                 </div>
                 <div>
                   <label className="form-label">NIP</label>
-                  <input className="form-input" defaultValue={editData?.nip} placeholder="18 digit NIP" />
+                  <input
+                    className="form-input"
+                    value={form.nip}
+                    onChange={(e) => setForm({ ...form, nip: e.target.value })}
+                    placeholder="18 digit NIP"
+                  />
                 </div>
                 <div className="col-span-2">
                   <label className="form-label">Sekolah</label>
-                  <select className="form-select">
-                    <option value="">Pilih Sekolah</option>
-                    <option>SMKN 1 Contoh</option>
-                    <option>SMKN 2 Contoh</option>
-                    <option>SMKN 3 Contoh</option>
+                  <select
+                    className="form-select"
+                    value={form.sekolahId}
+                    onChange={(e) => setForm({ ...form, sekolahId: e.target.value })}
+                  >
+                    <option value="">Tanpa Sekolah</option>
+                    {sekolahList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nama}{s.npsn ? ` (${s.npsn})` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="form-label">Jabatan</label>
-                  <input className="form-input" defaultValue={editData?.jabatan} placeholder="Jabatan" />
+                  <input
+                    className="form-input"
+                    value={form.jabatan}
+                    onChange={(e) => setForm({ ...form, jabatan: e.target.value })}
+                    placeholder="Jabatan"
+                  />
                 </div>
                 <div>
                   <label className="form-label">Mata Pelajaran</label>
-                  <input className="form-input" defaultValue={editData?.mapel} placeholder="Khusus guru" />
+                  <input
+                    className="form-input"
+                    value={form.mapel}
+                    onChange={(e) => setForm({ ...form, mapel: e.target.value })}
+                    placeholder="Khusus guru"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center gap-2">
+                  <input
+                    id="aktif"
+                    type="checkbox"
+                    checked={form.aktif}
+                    onChange={(e) => setForm({ ...form, aktif: e.target.checked })}
+                    className="w-4 h-4 accent-indigo-600"
+                  />
+                  <label htmlFor="aktif" className="text-xs text-gray-600">Akun aktif (bisa login)</label>
                 </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 sticky bottom-0 bg-white">
-              <button onClick={() => setShowModal(false)} className="btn bg-gray-100 text-gray-600 hover:bg-gray-200">Batal</button>
-              <button className="btn-primary">
+              <button type="button" onClick={() => setShowModal(false)} className="btn bg-gray-100 text-gray-600 hover:bg-gray-200">Batal</button>
+              <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editData ? "Simpan Perubahan" : "Tambah Pengguna"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </DashboardLayout>
   );
 }
-

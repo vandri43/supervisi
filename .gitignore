@@ -42,4 +42,8 @@ next-env.d.ts
 .agents/
 .windsurf/
 .claude/
+.freebuff/
 skills-lock.json
+
+# Deploy secrets
+deploy/.env.production

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { komponenPraObservasi, pertanyaanKonferensi, hitungNilaiPra, SKOR_MAKS_PRA } from "@/lib/instrumen/pra-observasi";
+import BuktiTugasPanel from "@/components/BuktiTugasPanel";
+import type { KomponenDb } from "@/lib/instrumen-db";
 import Badge from "@/components/ui/Badge";
 import ProgressBar from "@/components/ui/ProgressBar";
-import { Save, ChevronDown, ChevronUp, ArrowLeft, Info } from "lucide-react";
+import { Save, ChevronDown, ChevronUp, ArrowLeft, Info, Loader2, AlertTriangle, CheckCircle2, Paperclip } from "lucide-react";
 import Link from "next/link";
 
 const skorLabel: Record<number, { label: string; color: string }> = {
@@ -18,32 +19,161 @@ const skorLabel: Record<number, { label: string; color: string }> = {
 };
 
 type SkorMap = Record<string, number>;
+type CatatanMap = Record<string, string>;
 type KonferensiMap = Record<number, string>;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function PraObservasiPage(_props: { params: { id: string } }) {
+interface StageData {
+  siklus: {
+    id: string;
+    status: string;
+    guru: { nama: string; mapel: string | null };
+    sekolah: { nama: string } | null;
+    kelas: string | null;
+    mapel: string | null;
+    tahunAjaran: string;
+    semester: string;
+  };
+  tanggal: string | null;
+  catatanUmum: string;
+  selesai: boolean;
+  indikator: { key: string; skor: number; catatan: string }[];
+  konferensi: { nomor: number; jawaban: string }[];
+  instrumen?: KomponenDb[];
+  konferensiList?: string[];
+  skorMaks?: number;
+}
+
+export default function PraObservasiPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [openKomponen, setOpenKomponen] = useState<string>("A");
+  const [openKomponen, setOpenKomponen] = useState<Record<string, boolean>>({ A: true });
   const [skor, setSkor] = useState<SkorMap>({});
-  const [catatan, setCatatan] = useState<Record<string, string>>({});
+  const [catatan, setCatatan] = useState<CatatanMap>({});
   const [konferensi, setKonferensi] = useState<KonferensiMap>({});
+  const [catatanUmum, setCatatanUmum] = useState("");
   const [activeTab, setActiveTab] = useState<"instrumen" | "konferensi">("instrumen");
+  const [info, setInfo] = useState<{ nama: string; mapel: string | null; kelas: string | null; sekolah: string; periode: string } | null>(null);
+  const [komponen, setKomponen] = useState<KomponenDb[]>([]);
+  const [konferensiList, setKonferensiList] = useState<string[]>([]);
+  const [skorMaksStage, setSkorMaksStage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [savedMsg, setSavedMsg] = useState("");
+
+  const fetchStage = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/siklus/${id}/pra-observasi`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal memuat data");
+      const data = json as StageData;
+      setInfo({
+        nama: data.siklus.guru.nama,
+        mapel: data.siklus.mapel ?? data.siklus.guru.mapel ?? null,
+        kelas: data.siklus.kelas,
+        sekolah: data.siklus.sekolah?.nama ?? "-",
+        periode: `${data.siklus.tahunAjaran} Semester ${data.siklus.semester === "GANJIL" ? "Ganjil" : "Genap"}`,
+      });
+      const s: SkorMap = {};
+      const c: CatatanMap = {};
+      for (const i of data.indikator) {
+        s[i.key] = i.skor;
+        if (i.catatan) c[i.key] = i.catatan;
+      }
+      setSkor(s);
+      setCatatan(c);
+      const k: KonferensiMap = {};
+      for (const item of data.konferensi) k[item.nomor] = item.jawaban;
+      setKonferensi(k);
+      setCatatanUmum(data.catatanUmum ?? "");
+      setKomponen(data.instrumen ?? []);
+      setKonferensiList(data.konferensiList ?? []);
+      setSkorMaksStage(data.skorMaks ?? 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat data");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchStage();
+  }, [fetchStage]);
 
   const totalSkor = Object.values(skor).reduce((a, b) => a + b, 0);
-  const totalIndikator = komponenPraObservasi.reduce((a, k) => a + k.indikator.length, 0);
+  const totalIndikator = komponen.reduce((a, k) => a + k.indikator.length, 0);
   const diisi = Object.values(skor).filter((v) => v > 0).length;
-  const { nilaiAkhir, predikat } = hitungNilaiPra(totalSkor);
+  const nilaiAkhir = skorMaksStage > 0 ? (totalSkor / skorMaksStage) * 100 : 0;
+  const predikat =
+    nilaiAkhir >= 91 ? "SANGAT_BAIK" : nilaiAkhir >= 81 ? "BAIK" : nilaiAkhir >= 71 ? "CUKUP" : "KURANG";
 
   function setSkorIndikator(key: string, val: number) {
     setSkor((prev) => ({ ...prev, [key]: val }));
+    setSavedMsg("");
   }
 
   function getSkorKomponen(kode: string) {
-    const k = komponenPraObservasi.find((k) => k.kode === kode);
+    const k = komponen.find((k) => k.kode === kode);
     if (!k) return { total: 0, maks: 0 };
     const total = k.indikator.reduce((a, ind) => a + (skor[`${kode}-${ind.no}`] ?? 0), 0);
     const maks = k.indikator.length * 4;
     return { total, maks };
+  }
+
+  async function handleSave(selesai: boolean) {
+    setSaving(true);
+    setError("");
+    setSavedMsg("");
+    try {
+      const indikator = Object.entries(skor).map(([key, v]) => ({
+        key,
+        skor: v,
+        catatan: catatan[key] ?? "",
+      }));
+      const konf = konferensiList.map((_, idx) => ({
+        nomor: idx + 1,
+        jawaban: konferensi[idx + 1] ?? "",
+      }));
+      const res = await fetch(`/api/siklus/${id}/pra-observasi`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indikator, konferensi: konf, catatanUmum, selesai }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menyimpan");
+      setSavedMsg(selesai ? "Tersimpan! Siklus lanjut ke tahap Observasi." : "Draft tersimpan.");
+      if (selesai) {
+        setTimeout(() => router.push(`/supervisor/observasi/${id}`), 1200);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout pageTitle="Pra Observasi" breadcrumbs={[{ label: "Supervisor" }, { label: "Siklus", href: "/supervisor/siklus" }, { label: "Pra Observasi" }]}>
+        <div className="flex items-center justify-center py-20 text-gray-400">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Memuat instrumen...
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error && !info) {
+    return (
+      <DashboardLayout pageTitle="Pra Observasi" breadcrumbs={[{ label: "Supervisor" }, { label: "Siklus", href: "/supervisor/siklus" }, { label: "Pra Observasi" }]}>
+        <div className="max-w-lg mx-auto card p-8 text-center">
+          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-red-600 text-sm mb-4">{error}</p>
+          <Link href="/supervisor/siklus" className="btn-primary inline-flex"><ArrowLeft className="w-4 h-4" /> Kembali</Link>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
@@ -52,13 +182,13 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
       breadcrumbs={[
         { label: "Supervisor" },
         { label: "Siklus", href: "/supervisor/siklus" },
-        { label: "Pra Observasi" },
+        { label: info?.nama ?? "Pra Observasi" },
       ]}
     >
       <div className="max-w-4xl mx-auto">
-        <Link href="/supervisor/siklus" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
+        <Link href={`/supervisor/siklus/${id}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
           <ArrowLeft className="w-4 h-4" />
-          Kembali ke siklus
+          Kembali ke detail siklus
         </Link>
 
         {/* Header info guru */}
@@ -66,8 +196,10 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
           <div className="card-body flex items-center justify-between gap-4 flex-wrap">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Guru yang disupervisi</p>
-              <p className="font-bold text-gray-800">Siti Rahayu, S.Pd</p>
-              <p className="text-xs text-gray-500">DKV · X-DKV-1 · SMKN 1 Contoh · Semester Ganjil 2025/2026</p>
+              <p className="font-bold text-gray-800">{info?.nama}</p>
+              <p className="text-xs text-gray-500">
+                {info?.mapel ?? "-"} · {info?.kelas ?? "-"} · {info?.sekolah} · {info?.periode}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-400 mb-0.5">Progress Pengisian</p>
@@ -80,6 +212,38 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
           </div>
         </div>
 
+        {/* Perangkat mengajar guru — bukti link yang dikumpulkan guru untuk ditelaah sebelum menilai */}
+        <div className="card mb-5">
+          <div className="card-header flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-gray-800 font-bold text-sm flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-indigo-600" /> Perangkat Mengajar Guru
+              </h3>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Telaah bukti yang dikumpulkan guru (Analisis CP/Silabus, RPP/RPM, RPE, dll.) sebelum memberi skor
+              </p>
+            </div>
+          </div>
+          <div className="p-5 pt-0">
+            <BuktiTugasPanel
+              siklusId={id}
+              bisaVerifikasi
+              teksKosong="Guru belum mengunggah perangkat mengajar. Minta guru mengumpulkannya lewat menu Bukti Tugas."
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 px-4 py-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> {error}
+          </div>
+        )}
+        {savedMsg && (
+          <div className="flex items-center gap-2 px-4 py-3 mb-5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {savedMsg}
+          </div>
+        )}
+
         {/* Score summary */}
         {diisi > 0 && (
           <div
@@ -88,7 +252,7 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
           >
             <div>
               <p className="text-white/70 text-sm">Total Skor Sementara</p>
-              <p className="text-3xl font-bold">{totalSkor} <span className="text-lg font-normal opacity-60">/ {SKOR_MAKS_PRA}</span></p>
+              <p className="text-3xl font-bold">{totalSkor} <span className="text-lg font-normal opacity-60">/ {skorMaksStage}</span></p>
             </div>
             <div className="text-right">
               <p className="text-white/70 text-sm">Nilai Sementara</p>
@@ -116,7 +280,7 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {tab === "instrumen" ? "Instrumen (45 Indikator)" : "Konferensi Pra-Observasi"}
+              {tab === "instrumen" ? `Instrumen (${totalIndikator} Indikator)` : "Konferensi Pra-Observasi"}
             </button>
           ))}
         </div>
@@ -124,13 +288,13 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
         {/* Instrumen Tab */}
         {activeTab === "instrumen" && (
           <div className="space-y-3">
-            {komponenPraObservasi.map((k) => {
+            {komponen.map((k) => {
               const { total, maks } = getSkorKomponen(k.kode);
-              const isOpen = openKomponen === k.kode;
+              const isOpen = !!openKomponen[k.kode];
               return (
                 <div key={k.kode} className="card overflow-hidden">
                   <button
-                    onClick={() => setOpenKomponen(isOpen ? "" : k.kode)}
+                    onClick={() => setOpenKomponen((prev) => ({ ...prev, [k.kode]: !prev[k.kode] }))}
                     className="w-full card-header flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -221,7 +385,7 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
               </div>
             </div>
             <div className="card-body space-y-5">
-              {pertanyaanKonferensi.map((pertanyaan, i) => (
+              {konferensiList.map((pertanyaan, i) => (
                 <div key={i}>
                   <label className="form-label">Pertanyaan {i + 1}</label>
                   <p className="text-sm text-gray-700 mb-2 font-medium">{pertanyaan}</p>
@@ -229,11 +393,21 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
                     rows={3}
                     className="form-input text-sm"
                     placeholder="Jawaban guru..."
-                    value={konferensi[i] ?? ""}
-                    onChange={(e) => setKonferensi((prev) => ({ ...prev, [i]: e.target.value }))}
+                    value={konferensi[i + 1] ?? ""}
+                    onChange={(e) => setKonferensi((prev) => ({ ...prev, [i + 1]: e.target.value }))}
                   />
                 </div>
               ))}
+              <div>
+                <label className="form-label">Catatan Umum (Opsional)</label>
+                <textarea
+                  rows={2}
+                  className="form-input text-sm"
+                  placeholder="Catatan tambahan pra observasi..."
+                  value={catatanUmum}
+                  onChange={(e) => setCatatanUmum(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -246,14 +420,16 @@ export default function PraObservasiPage(_props: { params: { id: string } }) {
             </div>
             <button
               className="btn bg-gray-100 text-gray-600 hover:bg-gray-200"
-              onClick={() => router.push("/supervisor/siklus")}
+              disabled={saving}
+              onClick={() => handleSave(false)}
             >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Simpan Draft
             </button>
             <button
-              disabled={diisi < totalIndikator}
+              disabled={saving}
               className="btn-success"
-              onClick={() => router.push("/supervisor/siklus")}
+              onClick={() => handleSave(true)}
             >
               <Save className="w-4 h-4" />
               Selesai & Lanjut Observasi

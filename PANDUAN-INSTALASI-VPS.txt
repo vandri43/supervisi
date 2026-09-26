@@ -1,0 +1,321 @@
+===============================================================================
+   PANDUAN INSTALASI LENGKAP — APLIKASI SUPERVISI GURU
+   Next.js 14 + Prisma + MySQL + PM2 (VPS Ubuntu) + Caddy SSL (server terpisah)
+===============================================================================
+
+Tanggal dokumen : 23 September 2026
+Arsitektur      :
+
+  [User Browser]
+        |
+        | HTTPS (443)
+        v
+  [Server Caddy — SSL termination, server terpisah]
+        |
+        | HTTP (internal)
+        v
+  [VPS Aplikasi :3000 — Next.js + PM2 + MySQL]
+
+Domain contoh    : supervisi.domainanda.com   (ganti sesuai domain Anda)
+IP Caddy contoh  : 10.0.0.1                   (ganti sesuai IP server Caddy)
+
+
+===============================================================================
+BAGIAN 0 — SPEK SERVER
+===============================================================================
+
+VPS APLIKASI (Ubuntu 22.04 / 24.04 / 25.04):
+  - Minimum         : 1 vCPU, 1 GB RAM + 2 GB swap, 20 GB SSD
+  - Direkomendasikan: 2 vCPU, 2–4 GB RAM, 40 GB SSD
+
+SERVER CADDY:
+  - Cukup 1 vCPU / 512 MB – 1 GB RAM (hanya meneruskan trafik)
+
+
+===============================================================================
+BAGIAN 1 — PERSIAPAN VPS APLIKASI
+===============================================================================
+
+1.1. Login ke VPS
+     ssh root@IP_VPS_APLIKASI
+
+1.2. Update sistem & paket dasar
+     sudo apt update && sudo apt upgrade -y
+     sudo apt install -y curl git build-essential mysql-server
+
+     (Catatan: TIDAK perlu install nginx/certbot — SSL ditangani Caddy
+      di server terpisah)
+
+1.3. (Hanya jika RAM 1 GB) Tambah swap agar build tidak kehabisan memori
+     sudo fallocate -l 2G /swapfile
+     sudo chmod 600 /swapfile
+     sudo mkswap /swapfile
+     sudo swapon /swapfile
+     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+
+===============================================================================
+BAGIAN 2 — INSTALL NODE.JS 22 LTS
+===============================================================================
+
+     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+     sudo apt install -y nodejs
+     node -v      # harus v22.x
+     npm -v
+
+
+===============================================================================
+BAGIAN 3 — SETUP DATABASE MYSQL
+===============================================================================
+
+3.1. Amankan instalasi MySQL (ikuti wizard, jawab Y untuk semua)
+     sudo mysql_secure_installation
+
+3.2. Buat database & user khusus aplikasi
+     GANTI 'PasswordKuatAnda!' dengan password Anda sendiri!
+     sudo mysql <<'SQL'
+     CREATE DATABASE supervisi_guru CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+     CREATE USER 'supervisi'@'localhost' IDENTIFIED BY 'PasswordKuatAnda!';
+     GRANT ALL PRIVILEGES ON supervisi_guru.* TO 'supervisi'@'localhost';
+     FLUSH PRIVILEGES;
+     SQL
+
+3.3. Pastikan MySQL hanya listen localhost (default Ubuntu sudah begitu)
+     sudo ss -tlnp | grep 3306
+     # Harus 127.0.0.1:3306 — JANGAN dibuka ke publik
+
+
+===============================================================================
+BAGIAN 4 — UPLOAD KODE APLIKASI
+===============================================================================
+
+Cara A — rsync dari laptop (jalankan di LAPTOP, dari folder proyek):
+     rsync -avz --progress \
+       --exclude node_modules \
+       --exclude .next \
+       --exclude .git \
+       --exclude .env \
+       ./ root@IP_VPS_APLIKASI:/var/www/supervisi-guru/
+
+Cara B — git clone di VPS:
+     cd /var/www
+     git clone <URL_REPO> supervisi-guru
+
+Beri izin folder:
+     sudo mkdir -p /var/www/supervisi-guru
+     sudo chown -R $USER:$USER /var/www/supervisi-guru
+
+
+===============================================================================
+BAGIAN 5 — KONFIGURASI ENVIRONMENT (.env)
+===============================================================================
+
+5.1. Buat file .env di VPS
+     cd /var/www/supervisi-guru
+     nano .env
+
+5.2. Isi dengan (GANTI bagian yang ditandai):
+     DATABASE_URL="mysql://supervisi:PasswordKuatAnda!@localhost:3306/supervisi_guru"
+     NEXTAUTH_URL="https://supervisi.domainanda.com"
+     NEXTAUTH_SECRET="hasil-generate-di-bawah"
+     APP_NAME="Supervisi Guru"
+
+5.3. Generate NEXTAUTH_SECRET (salin hasilnya ke .env):
+     openssl rand -base64 32
+
+PENTING: NEXTAUTH_URL harus SAMA PERSIS dengan URL yang diketik user di
+browser (https + domain), karena NextAuth memakainya untuk cookie session.
+
+
+===============================================================================
+BAGIAN 6 — INSTALL DEPENDENCIES & SIAPKAN DATABASE
+===============================================================================
+
+     cd /var/www/supervisi-guru
+     npm install                # otomatis menjalankan prisma generate
+     npx prisma db push         # membuat semua tabel di MySQL
+     npm run db:seed            # isi akun login awal (jalankan SEKALI saja)
+
+
+===============================================================================
+BAGIAN 7 — BUILD & JALANKAN DENGAN PM2
+===============================================================================
+
+7.1. Install PM2 global
+     sudo npm install -g pm2
+
+7.2. Build aplikasi
+     cd /var/www/supervisi-guru
+     npm run build
+
+7.3. Jalankan dengan PM2
+     pm2 start npm --name supervisi-guru -- start
+     pm2 save
+
+7.4. Auto-start saat server reboot (jalankan perintah yang dicetak terminal)
+     pm2 startup
+
+7.5. Perintah PM2 berguna
+     pm2 status                # lihat status
+     pm2 logs supervisi-guru   # lihat log realtime
+     pm2 restart supervisi-guru
+
+
+===============================================================================
+BAGIAN 8 — FIREWALL (UFW) DI VPS APLIKASI
+===============================================================================
+
+Kunci port 3000 agar HANYA server Caddy yang bisa mengakses aplikasi
+(diganti IP_CADDY_SERVER dengan IP publik/private server Caddy):
+
+     sudo ufw allow OpenSSH
+     sudo ufw allow from IP_CADDY_SERVER to any port 3000 proto tcp
+     sudo ufw enable
+     sudo ufw status
+
+Hasil yang benar:
+  - Port 22  : terbuka (SSH)
+  - Port 3000: hanya dari IP server Caddy
+  - Port 3306: tertutup (MySQL internal)
+
+
+===============================================================================
+BAGIAN 9 — KONFIGURASI SERVER CADDY (SERVER TERPISAH)
+===============================================================================
+
+9.1. Jika Caddy belum terpasang, install:
+     sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | \
+       sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | \
+       sudo tee /etc/apt/sources.list.d/caddy-stable.list
+     sudo apt update && sudo apt install -y caddy
+
+9.2. Edit Caddyfile
+     sudo nano /etc/caddy/Caddyfile
+
+9.3. Tambahkan blok berikut:
+
+     supervisi.domainanda.com {
+         reverse_proxy IP_VPS_APLIKASI:3000
+     }
+
+     - Jika kedua server satu provider dan punya private network,
+       gunakan PRIVATE IP agar trafik tidak keluar dari jaringan internal.
+
+9.4. Reload Caddy
+     sudo caddy validate --config /etc/caddy/Caddyfile
+     sudo systemctl reload caddy
+
+9.5. Selesai — Caddy OTOMATIS:
+     - Mengambil sertifikat SSL dari Let's Encrypt
+     - Memperbarui sertifikat secara otomatis
+     - Meneruskan header X-Forwarded-Proto ke NextAuth
+
+9.6. Arahkan DNS domain ke server Caddy:
+     Type : A
+     Name : supervisi
+     Value: IP_PUBLIK_SERVER_CADDY
+
+
+===============================================================================
+BAGIAN 10 — VERIFIKASI AKHIR
+===============================================================================
+
+10.1. Di VPS aplikasi:
+      pm2 status                 # status "online"
+      curl -I http://localhost:3000   # balas HTTP 200/307
+
+10.2. Di server Caddy:
+      journalctl -u caddy -f     # lihat log, pastikan sertifikat berhasil
+
+10.3. Di browser, buka:
+      https://supervisi.domainanda.com
+      → Harus tampil halaman login dengan gembok SSL
+
+10.4. Login pertama kali (akun dari seed):
+      Admin      : admin@supervisi.id      / admin123
+      Supervisor : supervisor@supervisi.id / super123
+      Guru       : guru@supervisi.id       / guru123
+
+10.5. SETELAH LOGIN PERTAMA, SEGERA:
+      - Login sebagai Admin → menu Pengaturan → sesuaikan nama aplikasi/logo
+      - Ganti password default semua akun
+      - (Opsional) nonaktifkan akun yang tidak dipakai
+
+
+===============================================================================
+BAGIAN 11 — UPDATE APLIKASI (DEPLOY ULANG)
+===============================================================================
+
+Cara cepat dari laptop (folder proyek sudah ada script deploy/deploy.sh),
+atau manual:
+
+11.1. Upload kode terbaru (sama seperti Bagian 4, tanpa --exclude .env
+      ATAU upload lalu sesuaikan .env lagi)
+
+11.2. Di VPS:
+      cd /var/www/supervisi-guru
+      npm install
+      npx prisma db push         # hanya jika schema berubah
+      npm run build
+      pm2 restart supervisi-guru
+
+11.3. Jika ada perubahan struktur database dan ingin reset total:
+      npx prisma db push --force-reset   # HAPUS SEMUA DATA — hati-hati!
+      npm run db:seed
+
+
+===============================================================================
+BAGIAN 12 — TROUBLESHOOTING
+===============================================================================
+
+Masalah: Redirect loop / error saat login
+  → NEXTAUTH_URL salah. Harus "https://supervisi.domainanda.com"
+    (bukan http, bukan IP). Setelah ubah: pm2 restart supervisi-guru
+
+Masalah: "Application error" di browser
+  → pm2 logs supervisi-guru --lines 50
+
+Masalah: Koneksi database gagal (P1001)
+  → Cek MySQL jalan: sudo systemctl status mysql
+  → Tes kredensial: mysql -u supervisi -p supervisi_guru
+
+Masalah: Build gagal "Killed" / kehabisan memori
+  → Tambah swap (Bagian 1.3), atau build di laptop lalu upload folder .next
+
+Masalah: 502 Bad Gateway dari Caddy
+  → Aplikasi mati: pm2 status && pm2 restart supervisi-guru
+  → UFW memblokir Caddy: cek Bagian 8, pastikan IP Caddy diizinkan
+
+Masalah: Sertifikat tidak terbit
+  → DNS belum mengarah ke server Caddy (cek: dig supervisi.domainanda.com)
+  → Port 80/443 server Caddy harus terbuka untuk publik
+
+
+===============================================================================
+RINGKASAN SINGKAT (CHEAT SHEET)
+===============================================================================
+
+VPS Aplikasi:
+  apt update && apt upgrade -y
+  apt install -y curl git build-essential mysql-server
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  apt install -y nodejs
+  # buat DB + user (Bagian 3)
+  # upload kode + .env (Bagian 4-5)
+  npm install && npx prisma db push && npm run db:seed && npm run build
+  npm i -g pm2 && pm2 start npm --name supervisi-guru -- start
+  pm2 save && pm2 startup
+  # UFW hanya izinkan IP Caddy ke port 3000 (Bagian 8)
+
+Server Caddy:
+  # Caddyfile:
+  supervisi.domainanda.com {
+      reverse_proxy IP_VPS_APLIKASI:3000
+  }
+  systemctl reload caddy
+
+===============================================================================
+  Selamat menggunakan! — Dokumen ini dibuat otomatis untuk proyek supervisi-guru
+===============================================================================

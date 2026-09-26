@@ -41,6 +41,39 @@ enum Semester {
 }
 
 // =============================================
+// PENGATURAN APLIKASI (BRANDING)
+// =============================================
+
+model Setting {
+  id        String   @id @default("app")
+  appName   String   @default("Supervisi Guru") @db.VarChar(100)
+  appTagline String  @default("Sistem Supervisi Pembelajaran Mendalam") @db.VarChar(200)
+  logoUrl   String?  @db.VarChar(500)
+  footerText String? @db.VarChar(200)
+  tahunAjaran String @default("2025/2026") @db.VarChar(10)
+  semester   String  @default("GANJIL") @db.VarChar(10)
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// =============================================
+// TOKEN RESET PASSWORD
+// =============================================
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  email     String    @db.VarChar(255)
+  token     String    @unique @db.VarChar(100)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
+
+// =============================================
 // SEKOLAH
 // =============================================
 
@@ -87,6 +120,11 @@ model User {
 
   siklusAsSupervisor  Siklus[] @relation("supervisor")
   siklusAsGuru        Siklus[] @relation("guru")
+  notifikasi          Notifikasi[]
+  buktiAsGuru         Bukti[]  @relation("buktiGuru")
+  buktiDiverifikasi   Bukti[]  @relation("buktiVerifikator")
+  fotoSupervisi       FotoSupervisi[] @relation("fotoUploader")
+  mediaLink           MediaLink[]     @relation("mediaLinkUploader")
 
   @@map("users")
 }
@@ -118,6 +156,9 @@ model Siklus {
   praObservasi      PraObservasi?
   observasiKelas    ObservasiKelas?
   pascaSupervisi    PascaSupervisi?
+  bukti             Bukti[]
+  fotoSupervisi     FotoSupervisi[]
+  mediaLink         MediaLink[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -270,4 +311,151 @@ model RencanaTindakLanjut {
   pascaSupervisi   PascaSupervisi @relation(fields: [pascaSupervisiId], references: [id], onDelete: Cascade)
 
   @@map("rencana_tindak_lanjut")
+}
+
+// =============================================
+// BUKTI TUGAS GURU (LINK DOKUMEN/VIDEO)
+// =============================================
+
+enum StatusBukti {
+  MENUNGGU
+  DITERIMA
+  DITOLAK
+}
+
+enum JenisBukti {
+  RPP_RPM
+  ANALISIS_CP
+  RPE
+  MODUL_AJAR
+  VIDEO_PEMBELAJARAN
+  FOTO_KEGIATAN
+  LAINNYA
+}
+
+model Bukti {
+  id            String     @id @default(cuid())
+  siklusId      String
+  guruId        String
+  judul         String     @db.VarChar(200)
+  jenis         JenisBukti @default(LAINNYA)
+  link          String     @db.VarChar(1000)
+  keterangan    String?    @db.Text
+  status        StatusBukti @default(MENUNGGU)
+  catatanVerifikasi String? @db.Text
+  diverifikasiOlehId String?
+  diverifikasiPada DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  siklus          Siklus @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  guru            User   @relation("buktiGuru", fields: [guruId], references: [id], onDelete: Cascade)
+  diverifikasiOleh User?  @relation("buktiVerifikator", fields: [diverifikasiOlehId], references: [id], onDelete: SetNull)
+
+  @@index([siklusId])
+  @@index([guruId])
+  @@map("bukti")
+}
+
+// =============================================
+// FOTO DOKUMENTASI SUPERVISI (BUKTI OTENTIK)
+// =============================================
+
+model FotoSupervisi {
+  id          String   @id @default(cuid())
+  siklusId    String
+  uploaderId  String
+  fileName    String   @db.VarChar(255)  // nama asli file saat diunggah
+  storedName  String   @unique @db.VarChar(255) // nama file di server
+  mimeType    String   @db.VarChar(100)
+  ukuran      Int      // byte
+  keterangan  String?  @db.VarChar(255)
+  createdAt   DateTime @default(now())
+
+  siklus   Siklus @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  uploader User   @relation("fotoUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([siklusId])
+  @@map("foto_supervisi")
+}
+
+// =============================================
+// LINK DOKUMENTASI SUPERVISI (YOUTUBE / GOOGLE DRIVE)
+// =============================================
+
+model MediaLink {
+  id          String   @id @default(cuid())
+  siklusId    String
+  uploaderId  String
+  judul       String   @db.VarChar(200)
+  url         String   @db.VarChar(1000)
+  provider    String   @default("LAINNYA") @db.VarChar(20) // YOUTUBE | GDRIVE | LAINNYA
+  providerId  String?  @db.VarChar(60) // id video/file untuk thumbnail & embed
+  keterangan  String?  @db.VarChar(255)
+  createdAt   DateTime @default(now())
+
+  siklus   Siklus @relation(fields: [siklusId], references: [id], onDelete: Cascade)
+  uploader User   @relation("mediaLinkUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([siklusId])
+  @@map("media_link")
+}
+
+// =============================================
+// INSTRUMEN SUPERVISI DINAMIS
+// =============================================
+
+model InstrumenKomponen {
+  id        String @id @default(cuid())
+  stage     String @db.VarChar(20) // "pra" | "observasi" | "pasca"
+  kode      String @db.VarChar(10)
+  judul     String @db.VarChar(255)
+  urutan    Int    @default(0)
+  indikator InstrumenIndikator[]
+
+  @@unique([stage, kode])
+  @@map("instrumen_komponen")
+}
+
+model InstrumenIndikator {
+  id         String            @id @default(cuid())
+  komponenId String
+  nomor      Int
+  deskripsi  String            @db.Text
+  dimensi    String?           @db.VarChar(30) // relevan untuk observasi: BBM/3M/Literasi/Numerasi/Asesmen/Umum
+  tagPM      String?           @db.VarChar(30)
+  urutan     Int               @default(0)
+
+  komponen InstrumenKomponen @relation(fields: [komponenId], references: [id], onDelete: Cascade)
+
+  @@unique([komponenId, nomor])
+  @@map("instrumen_indikator")
+}
+
+model InstrumenKonferensi {
+  id         String @id @default(cuid())
+  pertanyaan String @db.Text
+  urutan     Int    @default(0)
+
+  @@map("instrumen_konferensi")
+}
+
+// =============================================
+// NOTIFIKASI
+// =============================================
+
+model Notifikasi {
+  id        String    @id @default(cuid())
+  userId    String
+  judul     String    @db.VarChar(200)
+  pesan     String    @db.VarChar(500)
+  tipe      String    @default("info") @db.VarChar(20) // info | sukses | rtl | supervisi
+  link      String?   @db.VarChar(255)
+  dibaca    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dibaca])
+  @@map("notifikasi")
 }
