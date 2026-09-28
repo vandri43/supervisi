@@ -125,6 +125,7 @@ model User {
   buktiDiverifikasi   Bukti[]  @relation("buktiVerifikator")
   fotoSupervisi       FotoSupervisi[] @relation("fotoUploader")
   mediaLink           MediaLink[]     @relation("mediaLinkUploader")
+  dokumenSk           DokumenSk[]     @relation("skUploader")
 
   @@map("users")
 }
@@ -399,6 +400,27 @@ model MediaLink {
 
   @@index([siklusId])
   @@map("media_link")
+}
+
+// =============================================
+// DOKUMEN SK (SURAT KEPUTUSAN) — TAMPIL PUBLIK DI HALAMAN LOGIN
+// =============================================
+
+model DokumenSk {
+  id         String   @id @default(cuid())
+  judul      String   @db.VarChar(200)
+  fileName   String   @db.VarChar(255)  // nama asli file saat diunggah
+  storedName String   @unique @db.VarChar(255) // nama file acak di server
+  mimeType   String   @db.VarChar(100)  // application/pdf atau image/*
+  ukuran     Int      // byte
+  keterangan String?  @db.VarChar(255)
+  uploaderId String
+  createdAt  DateTime @default(now())
+
+  uploader User @relation("skUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("dokumen_sk")
 }
 
 // =============================================

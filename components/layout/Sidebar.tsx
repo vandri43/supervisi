@@ -20,6 +20,7 @@ import {
   Paperclip,
   ListChecks,
   CalendarClock,
+  FileBadge,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "@/lib/useSettings";
@@ -67,6 +68,12 @@ const navSections: NavSection[] = [
         label: "Instrumen Supervisi",
         href: "/admin/instrumen",
         icon: ListChecks,
+        roles: ["ADMIN"],
+      },
+      {
+        label: "Dokumen SK",
+        href: "/admin/sk",
+        icon: FileBadge,
         roles: ["ADMIN"],
       },
     ],

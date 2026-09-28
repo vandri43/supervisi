@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Eye, EyeOff, Loader2, ShieldCheck, BarChart3, TrendingUp, Users, ClipboardCheck, Camera, Film, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldCheck, BarChart3, TrendingUp, Users, ClipboardCheck, Camera, Film, X, FileBadge, ExternalLink } from "lucide-react";
 import BrandHeader from "@/components/BrandHeader";
 
 // Recharts (~130KB) dimuat LAZY terpisah — halaman login tampil lebih cepat
@@ -48,6 +48,14 @@ interface GaleriItem {
   topik: string | null;
 }
 
+interface SkItem {
+  id: string;
+  judul: string;
+  tipe: "pdf" | "gambar";
+  url: string;
+  keterangan: string | null;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -60,6 +68,9 @@ export default function LoginPage() {
   const [galeri, setGaleri] = useState<GaleriItem[]>([]);
   const [galeriLoaded, setGaleriLoaded] = useState(false);
   const [galeriLihat, setGaleriLihat] = useState<GaleriItem | null>(null);
+  const [skList, setSkList] = useState<SkItem[]>([]);
+  const [skLoaded, setSkLoaded] = useState(false);
+  const [skLihat, setSkLihat] = useState<SkItem | null>(null);
 
   useEffect(() => {
     fetch("/api/public/statistik")
@@ -72,6 +83,11 @@ export default function LoginPage() {
       .then((data: { ada: boolean; items: GaleriItem[] }) => setGaleri(data.ada ? data.items : []))
       .catch(() => {})
       .finally(() => setGaleriLoaded(true));
+    fetch("/api/public/sk")
+      .then((r) => r.json())
+      .then((data: { ada: boolean; items: SkItem[] }) => setSkList(data.ada ? data.items : []))
+      .catch(() => {})
+      .finally(() => setSkLoaded(true));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -346,6 +362,61 @@ export default function LoginPage() {
           </section>
         )}
 
+        {/* ================= DOKUMEN SK PUBLIK ================= */}
+        {!skLoaded ? null : skList.length > 0 && (
+          <section
+            className="mt-6 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 p-6 lg:p-8 shadow-2xl"
+            aria-label="Dokumen SK"
+          >
+            <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+              <div>
+                <h2 className="text-white text-lg font-bold flex items-center gap-2">
+                  <FileBadge className="w-5 h-5 text-amber-300" />
+                  Dokumen SK (Surat Keputusan)
+                </h2>
+                <p className="text-white/40 text-xs mt-1">
+                  SK resmi sekolah — dokumen PDF terbuka otomatis, klik untuk melihat
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 text-white/60 bg-white/10 border border-white/15 rounded-full px-3 py-1 text-[11px]">
+                <FileBadge className="w-3 h-3" /> {skList.length} Dokumen
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {skList.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setSkLihat(s)}
+                  className="group flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-colors text-left"
+                >
+                  {s.tipe === "gambar" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={s.url}
+                      alt={s.judul}
+                      loading="lazy"
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-white/10"
+                    />
+                  ) : (
+                    <span className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-500/15 border border-red-400/20">
+                      <FileBadge className="w-6 h-6 text-red-300" />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-white truncate">{s.judul}</span>
+                    <span className="block text-[11px] text-white/40 truncate">
+                      {s.tipe === "pdf" ? "PDF" : "Gambar"}
+                      {s.keterangan ? ` · ${s.keterangan}` : ""}
+                    </span>
+                  </span>
+                  <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-white/60 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Lightbox galeri (foto perbesar / video putar) */}
         {galeriLihat && (
           <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4" onClick={() => setGaleriLihat(null)}>
@@ -393,6 +464,51 @@ export default function LoginPage() {
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={galeriLihat.url} alt={galeriLihat.topik ?? "Dokumentasi supervisi"} className="w-full max-h-[75vh] object-contain rounded-xl" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Lightbox dokumen SK (PDF embed / gambar perbesar) */}
+        {skLihat && (
+          <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4" onClick={() => setSkLihat(null)}>
+            <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-medium truncate">
+                    {skLihat.tipe === "pdf" ? "Dokumen SK (PDF)" : "Dokumen SK (Gambar)"}
+                    {skLihat.judul ? ` — ${skLihat.judul}` : ""}
+                  </p>
+                  <p className="text-white/50 text-xs">Surat Keputusan resmi sekolah</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={skLihat.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sm bg-white/10 text-white hover:bg-white/20"
+                  >
+                    Tab Baru
+                  </a>
+                  <button onClick={() => setSkLihat(null)} className="btn btn-sm bg-white/10 text-white hover:bg-white/20">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              {skLihat.tipe === "pdf" ? (
+                <div className="w-full rounded-xl overflow-hidden bg-white" style={{ height: "80vh" }}>
+                  <object data={skLihat.url} type="application/pdf" className="w-full h-full">
+                    <div className="p-8 text-center bg-gray-900 rounded-xl">
+                      <p className="text-white/70 text-sm mb-3">Pratinjau PDF tidak didukung browser ini.</p>
+                      <a href={skLihat.url} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex">
+                        Buka PDF di Tab Baru
+                      </a>
+                    </div>
+                  </object>
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={skLihat.url} alt={skLihat.judul} className="w-full max-h-[80vh] object-contain rounded-xl" />
               )}
             </div>
           </div>

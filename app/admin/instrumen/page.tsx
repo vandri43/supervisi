@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import Badge from "@/components/ui/Badge";
 import {
   Loader2, Plus, Trash2, Pencil, Check, X, ChevronUp, ChevronDown,
   ClipboardList, MessageCircleQuestion, ChevronDown as ChevronDownIc, ChevronUp as ChevronUpIc,
-  MousePointerClick,
+  MousePointerClick, Download, FileSpreadsheet, Upload,
 } from "lucide-react";
 
 interface IndikatorDb {
@@ -53,6 +53,12 @@ export default function InstrumenAdminPage() {
   const [editInd, setEditInd] = useState<{ id: string; deskripsi: string; dimensi: string; tagPM: string } | null>(null);
   const [editKonf, setEditKonf] = useState<{ id: string; pertanyaan: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Import Excel
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importMode, setImportMode] = useState<"replace" | "merge">("replace");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string>("");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -142,6 +148,94 @@ export default function InstrumenAdminPage() {
             <strong>Cara mengelola indikator:</strong> klik judul komponen (atau tombol ▼ di kanan) untuk membuka daftar indikator.
             Di dalamnya ada tombol <strong>edit ✏</strong> dan <strong>hapus 🗑</strong> pada tiap indikator, serta form <strong>Tambah Indikator</strong> di bagian bawah.
           </span>
+        </div>
+
+        {/* ===== Import / Export Excel ===== */}
+        <div className="card p-5 mb-5">
+          <h3 className="text-gray-800 font-bold text-sm flex items-center gap-2 mb-1">
+            <FileSpreadsheet className="w-4 h-4 text-green-600" /> Import / Export Excel
+          </h3>
+          <p className="text-gray-400 text-xs mb-4">
+            Kelola instrumen lewat file Excel: unduh template kosong, ekspor data saat ini untuk diedit di Excel,
+            lalu impor kembali (mendukung 3 sheet tahap + sheet Konferensi).
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <a href="/api/admin/instrumen/excel?mode=template" className="btn btn-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+              <Download className="w-3.5 h-3.5" /> Unduh Template
+            </a>
+            <a href="/api/admin/instrumen/excel?mode=export" className="btn btn-sm bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">
+              <Download className="w-3.5 h-3.5" /> Export Excel
+            </a>
+            <div className="h-6 w-px bg-gray-200 mx-1" />
+            <select
+              value={importMode}
+              onChange={(e) => setImportMode(e.target.value as "replace" | "merge")}
+              className="form-select text-sm py-2 w-56"
+              title="Mode import"
+            >
+              <option value="replace">Mode: GANTI total (hapus lama)</option>
+              <option value="merge">Mode: GABUNG (tambahkan)</option>
+            </select>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              className="btn-primary btn-sm disabled:opacity-60"
+            >
+              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              {importing ? "Mengimpor..." : "Import Excel"}
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (importMode === "replace") {
+                  const lanjut = confirm(
+                    "MODE GANTI TOTAL: seluruh komponen & indikator yang ada akan DIHAPUS dan diganti isi file Excel ini.\n\nData siklus yang sudah dinilai TIDAK berubah. Lanjutkan?"
+                  );
+                  if (!lanjut) {
+                    e.target.value = "";
+                    return;
+                  }
+                }
+                setImporting(true);
+                setImportResult("");
+                setError("");
+                try {
+                  const fd = new FormData();
+                  fd.append("file", f);
+                  fd.append("mode", importMode);
+                  const res = await fetch("/api/admin/instrumen/excel", { method: "POST", body: fd });
+                  const json = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(json.error || "Import gagal");
+                  const l = json.laporan ?? {};
+                  const ringkas = ["pra", "observasi", "pasca"]
+                    .filter((s) => l[s])
+                    .map((s) => `${s === "pra" ? "Pra" : s === "observasi" ? "Observasi" : "Pasca"}: ${l[s].komponen} komponen / ${l[s].indikator} indikator`)
+                    .join(" · ");
+                  setImportResult(`Import (${json.mode === "merge" ? "gabung" : "ganti"}) berhasil. ${ringkas}${json.konferensi ? ` · Konferensi: ${json.konferensi} pertanyaan` : ""}`);
+                  fetchAll();
+                  fetchKonfDetail();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Import gagal");
+                } finally {
+                  setImporting(false);
+                  if (importInputRef.current) importInputRef.current.value = "";
+                }
+              }}
+            />
+          </div>
+          {importResult && (
+            <div className="mt-3 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs">{importResult}</div>
+          )}
+          <p className="text-[11px] text-gray-400 mt-3">
+            <strong>Mode GANTI</strong>: seluruh isi tahap dihapus lalu diganti isi file (untuk penataan ulang total).
+            <strong> Mode GABUNG</strong>: isi file ditambahkan ke yang sudah ada tanpa menghapus (cocok untuk menambah komponen baru).
+            Data siklus yang sudah dinilai tidak pernah berubah.
+          </p>
         </div>
 
         {/* Tab stage */}

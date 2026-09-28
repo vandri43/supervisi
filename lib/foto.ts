@@ -37,6 +37,47 @@ export function isVideo(mime: string): boolean {
   return mime.startsWith("video/");
 }
 
+// =============================================
+// DOKUMEN SK (SURAT KEPUTUSAN) — PDF atau gambar
+// Disimpan di folder terpisah, dipublikasikan ke halaman login via API.
+// =============================================
+export const SK_DIR = process.env.SK_DIR || "/var/www/supervisi-guru/uploads/dokumen-sk";
+// PDF biasanya lebih besar dari foto; 10 MB cukup longgar untuk scan SK.
+export const SK_MAX_UKURAN = 10 * 1024 * 1024;
+
+const MIME_SK_DIIZINKAN: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+
+export function mimeSkDiizinkan(mime: string): boolean {
+  return mime in MIME_SK_DIIZINKAN;
+}
+
+export function isPdf(mime: string): boolean {
+  return mime === "application/pdf";
+}
+
+// Simpan buffer SK ke disk (folder SK), kembalikan nama file acak & aman
+export async function simpanSk(buffer: Buffer, mimeType: string): Promise<string> {
+  const ext = MIME_SK_DIIZINKAN[mimeType] ?? ".pdf";
+  await mkdir(SK_DIR, { recursive: true });
+  const storedName = `${Date.now()}-${crypto.randomBytes(12).toString("hex")}${ext}`;
+  await writeFile(path.join(SK_DIR, storedName), buffer);
+  return storedName;
+}
+
+// Hapus file SK dari disk (abaikan error jika file sudah tidak ada)
+export async function hapusSkFile(storedName: string): Promise<void> {
+  try {
+    await unlink(path.join(SK_DIR, storedName));
+  } catch {
+    // file mungkin sudah terhapus — abaikan
+  }
+}
+
 // Simpan buffer media ke disk, kembalikan nama file tersimpan yang acak & aman
 export async function simpanFoto(buffer: Buffer, mimeType: string): Promise<string> {
   const ext = MIME_DIIZINKAN[mimeType] ?? MIME_VIDEO_DIIZINKAN[mimeType] ?? ".jpg";

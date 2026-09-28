@@ -1,101 +1,75 @@
 #!/bin/bash
 # =============================================================
-# Deploy Script - Aplikasi Supervisi Guru
-# Jalankan dari laptop (Git Bash / Linux / Mac):
+# Deploy Script v2 - Aplikasi Supervisi Guru
+# Perbaikan: build di folder TERPISAH lalu atomic swap, sehingga
+# server yang sedang melayani tidak pernah membaca folder .next
+# yang sedang ditimpa (penyebab hang / MODULE_NOT_FOUND setelah deploy).
+#
+# Jalankan dari laptop:
 #   bash deploy/deploy.sh
-# Ganti host tujuan tanpa mengedit file:
+# Ganti host tanpa mengedit file:
 #   VPS_HOST=root@1.2.3.4 bash deploy/deploy.sh
-# Lewati build lokal (opsional):
-#   SKIP_BUILD=1 bash deploy/deploy.sh
 # =============================================================
 
-set -e  # exit on error
+set -e
 
-# ---- Konfigurasi ----
-VPS_HOST="${VPS_HOST:-root@210.79.142.183}"
+VPS_HOST="${VPS_HOST:-root@10.10.102.15}"
 APP_DIR="${APP_DIR:-/var/www/supervisi-guru}"
 APP_NAME="${APP_NAME:-supervisi-guru}"
 
 echo "======================================"
-echo "  DEPLOY: Supervisi Guru"
+echo "  DEPLOY v2 (atomic swap): Supervisi Guru"
 echo "  Target: $VPS_HOST:$APP_DIR"
 echo "======================================"
 
-# 1. Build lokal dulu (validasi sebelum upload)
-if [ "${SKIP_BUILD:-0}" = "1" ]; then
-  echo ""
-  echo "[1/5] Lewati build lokal (SKIP_BUILD=1)"
-else
-  echo ""
-  echo "[1/5] Building project lokal..."
-  npm run build
-  echo "      Build selesai ✓"
-fi
-
-# 2. Upload source ke VPS
+# 1. Upload source (tanpa node_modules/.next/.git/.env)
 echo ""
-echo "[2/5] Upload source ke VPS..."
-ssh "$VPS_HOST" "mkdir -p $APP_DIR"
-if command -v rsync >/dev/null 2>&1; then
-  # Linux/Mac: rsync lebih cepat (hanya kirim file berubah)
-  rsync -az --progress \
-    --exclude 'node_modules' \
-    --exclude '.next' \
-    --exclude '.git' \
-    --exclude '.env' \
-    --exclude '*.log' \
-    ./ "$VPS_HOST:$APP_DIR/"
-else
-  # Windows/Git Bash: fallback tar lewat koneksi SSH
-  echo "      (rsync tidak tersedia, memakai tar+ssh)"
-  tar -czf - \
-    --exclude='./node_modules' \
-    --exclude='./.next' \
-    --exclude='./.git' \
-    --exclude='./.env' \
-    --exclude='./deploy/.env.production' \
-    --exclude='./.agents' \
-    --exclude='./.claude' \
-    --exclude='./.windsurf' \
-    --exclude='./.freebuff' \
-    --exclude='*.log' \
-    ./ | ssh "$VPS_HOST" "tar -xzf - --no-same-owner --no-same-permissions -C $APP_DIR"
-fi
+echo "[1/5] Upload source ke VPS..."
+tar -czf - \
+  --exclude='./node_modules' \
+  --exclude='./.next' \
+  --exclude='./.next-new' \
+  --exclude='./.git' \
+  --exclude='./.env' \
+  --exclude='./deploy/.env.production' \
+  --exclude='./.agents' \
+  --exclude='./.claude' \
+  --exclude='./.windsurf' \
+  --exclude='./.freebuff' \
+  --exclude='*.log' \
+  ./ | ssh "$VPS_HOST" "tar -xzf - --no-same-owner --no-same-permissions -C $APP_DIR"
 echo "      Upload selesai ✓"
 
-# 3. Siapkan .env di VPS (TIDAK menimpa yang sudah ada)
+# 2. Install & generate (aman saat app lama masih jalan)
+# db push: menerapkan perubahan schema (tabel baru) — aman, gagal otomatis bila butuh data-loss
 echo ""
-echo "[3/5] Cek konfigurasi .env di VPS..."
-if ssh "$VPS_HOST" "test -f $APP_DIR/.env"; then
-  echo "      .env sudah ada di VPS — dipakai apa adanya ✓"
-elif [ -f deploy/.env.production ]; then
-  scp deploy/.env.production "$VPS_HOST:$APP_DIR/.env"
-  echo "      .env diunggah dari deploy/.env.production ✓"
-else
-  echo "      PERINGATAN: .env belum ada & deploy/.env.production tidak ditemukan!"
-  echo "      Buat manual di VPS: nano $APP_DIR/.env (lihat PANDUAN Bagian 5)"
-fi
+echo "[2/5] Install dependencies, generate Prisma client & db push..."
+ssh "$VPS_HOST" "cd $APP_DIR && npm install --production=false && node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js db push --skip-generate"
+echo "      Selesai ✓"
 
-# 4. Install dependencies & build di VPS
+# 3. BUILD KE FOLDER TERPISAH (.next-new) — app lama tetap melayani utuh
 echo ""
-echo "[4/5] Install & build di VPS (beberapa menit)..."
-ssh "$VPS_HOST" "cd $APP_DIR && \
-  npm install --production=false && \
-  npx prisma generate && \
-  npx prisma db push && \
-  npm run build"
-echo "      Install & build selesai ✓"
+echo "[3/5] Build ke folder terpisah (.next-new) — app lama tetap melayani..."
+ssh "$VPS_HOST" "cd $APP_DIR && rm -rf .next-new && NEXT_DIST_DIR=.next-new node node_modules/next/dist/bin/next build"
+echo "      Build selesai ✓"
 
-# 5. Restart aplikasi dengan PM2
+# 4. ATOMIC SWAP: ganti .next sekaligus, lalu reload (zero-downtime)
 echo ""
-echo "[5/5] Restart aplikasi dengan PM2..."
+echo "[4/5] Atomic swap .next-new -> .next & reload PM2..."
 ssh "$VPS_HOST" "cd $APP_DIR && \
-  (pm2 restart $APP_NAME 2>/dev/null || pm2 start npm --name $APP_NAME -- start) && \
-  pm2 save"
-echo "      PM2 restart selesai ✓"
+  rm -rf .next-old && \
+  mv .next .next-old 2>/dev/null || true && \
+  mv .next-new .next && \
+  (pm2 reload $APP_NAME --update-env 2>/dev/null || pm2 restart $APP_NAME --update-env) && \
+  rm -rf .next-old"
+echo "      Swap & reload selesai ✓"
+
+# 5. Verifikasi
+echo ""
+echo "[5/5] Verifikasi..."
+ssh "$VPS_HOST" "sleep 2 && pm2 list | grep $APP_NAME && curl -s -o /dev/null -w 'Health check /login: HTTP %{http_code} (%{time_total}s)\n' http://127.0.0.1:3000/login"
 
 echo ""
 echo "======================================"
-echo "  DEPLOY SELESAI!"
-echo "  Cek aplikasi di domain Anda"
+echo "  DEPLOY SELESAI (tanpa downtime, tanpa hang!)"
 echo "======================================"
