@@ -241,7 +241,7 @@ export default function BuktiTugasPage() {
     ditolak: bukti.filter((b) => b.status === "DITOLAK").length,
   };
 
-  const isMediaBukti = (b: BuktiRow) => b.link.startsWith("/api/foto/");
+  const isMediaBukti = (b: BuktiRow) => !!b.link && b.link.startsWith("/api/foto/");
 
   return (
     <DashboardLayout

@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       judul: b.judul,
       jenis: b.jenis,
       jenisLabel: LABEL_JENIS[b.jenis] ?? b.jenis,
-      link: b.link,
+      link: b.link ?? "",
       keterangan: b.keterangan,
       status: b.status,
       catatanVerifikasi: b.catatanVerifikasi,

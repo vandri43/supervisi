@@ -34,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     foto.map((f) => ({
       id: f.id,
       url: `/api/foto/${f.id}`,
+      mime: f.mimeType ?? "image/jpeg",
       keterangan: f.keterangan,
       fileName: f.fileName,
       ukuran: f.ukuran,
