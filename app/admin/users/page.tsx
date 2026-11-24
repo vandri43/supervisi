@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
 import {
   Plus, Search, Pencil, Trash2, Users, ShieldCheck, GraduationCap, BookOpen,
-  Eye, EyeOff, Loader2, Upload, Download, FileSpreadsheet,
+  Eye, EyeOff, Loader2, Upload, Download, FileSpreadsheet, KeyRound,
 } from "lucide-react";
 
 type Role = "ADMIN" | "SUPERVISOR" | "GURU";
@@ -42,7 +42,7 @@ const emptyForm = {
 };
 
 const roleConfig: Record<Role, { label: string; variant: BadgeVariant; icon: React.ElementType }> = {
-  ADMIN:      { label: "Admin",      variant: "danger", icon: ShieldCheck },
+  ADMIN:      { label: "Admin",      variant: "danger",  icon: ShieldCheck },
   SUPERVISOR: { label: "Supervisor", variant: "primary", icon: GraduationCap },
   GURU:       { label: "Guru",       variant: "info",    icon: BookOpen },
 };
@@ -61,6 +61,17 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Seleksi massal
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Bulk password modal
+  const [showBulkPassModal, setShowBulkPassModal] = useState(false);
+  const [bulkPassword, setBulkPassword] = useState("");
+  const [showBulkPass, setShowBulkPass] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+
   // Import Excel
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -74,6 +85,8 @@ export default function UsersPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memuat data pengguna");
       setList(json);
+      // Reset seleksi saat data di-refresh
+      setSelectedIds(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memuat data pengguna");
     } finally {
@@ -182,6 +195,7 @@ export default function UsersPage() {
     }
   };
 
+  // ---- Seleksi massal ----
   const filtered = list.filter((u) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -191,6 +205,76 @@ export default function UsersPage() {
     const matchRole = filterRole ? u.role === filterRole : true;
     return matchSearch && matchRole;
   });
+
+  const filteredIds = filtered.map((u) => u.id);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const someFilteredSelected =
+    !allFilteredSelected && filteredIds.some((id) => selectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      // Deselect semua yang terfilter
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      // Select semua yang terfilter
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // ---- Bulk Password ----
+  const openBulkPass = () => {
+    setBulkPassword("");
+    setBulkError("");
+    setBulkResult(null);
+    setShowBulkPass(false);
+    setShowBulkPassModal(true);
+  };
+
+  const handleBulkPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBulkSaving(true);
+    setBulkError("");
+    setBulkResult(null);
+    try {
+      const res = await fetch("/api/users/bulk-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          password: bulkPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal memperbarui password");
+      setBulkResult(`Password berhasil diubah untuk ${json.updated} pengguna.`);
+      setSelectedIds(new Set());
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : "Gagal memperbarui password");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const counts = {
     total: list.length,
@@ -207,10 +291,10 @@ export default function UsersPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Total Pengguna", value: counts.total, color: "text-indigo-600 bg-indigo-50", icon: Users },
-          { label: "Admin", value: counts.admin, color: "text-red-600 bg-red-50", icon: ShieldCheck },
-          { label: "Supervisor", value: counts.supervisor, color: "text-purple-600 bg-purple-50", icon: GraduationCap },
-          { label: "Guru", value: counts.guru, color: "text-blue-600 bg-blue-50", icon: BookOpen },
+          { label: "Total Pengguna", value: counts.total,      color: "text-indigo-600 bg-indigo-50", icon: Users },
+          { label: "Admin",          value: counts.admin,      color: "text-red-600 bg-red-50",       icon: ShieldCheck },
+          { label: "Supervisor",     value: counts.supervisor, color: "text-purple-600 bg-purple-50", icon: GraduationCap },
+          { label: "Guru",           value: counts.guru,       color: "text-blue-600 bg-blue-50",     icon: BookOpen },
         ].map((s, i) => (
           <div key={i} className="card p-4 flex items-center gap-4">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${s.color}`}>
@@ -293,6 +377,30 @@ export default function UsersPage() {
           </div>
         </div>
 
+        {/* Bulk action bar — muncul saat ada yang diseleksi */}
+        {selectedIds.size > 0 && (
+          <div className="mx-6 mt-4 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-sm font-medium text-indigo-700">
+              {selectedIds.size} pengguna dipilih
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openBulkPass}
+                className="btn bg-indigo-600 text-white hover:bg-indigo-700 text-xs"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                Ubah Password
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="btn bg-white text-gray-500 hover:bg-gray-100 border border-gray-200 text-xs"
+              >
+                Batalkan Seleksi
+              </button>
+            </div>
+          </div>
+        )}
+
         {importResult && (
           <div className="mx-6 mt-4 px-4 py-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs whitespace-pre-line flex items-start justify-between gap-3">
             <span>{importResult}</span>
@@ -310,6 +418,20 @@ export default function UsersPage() {
           <table className="table-argon">
             <thead>
               <tr>
+                {/* Kolom checkbox */}
+                <th className="w-10">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                    checked={allFilteredSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someFilteredSelected;
+                    }}
+                    onChange={toggleSelectAll}
+                    title="Pilih semua"
+                    disabled={filtered.length === 0}
+                  />
+                </th>
                 <th>Nama</th>
                 <th>Email</th>
                 <th>Role</th>
@@ -323,7 +445,7 @@ export default function UsersPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400">
+                  <td colSpan={9} className="text-center py-10 text-gray-400">
                     <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" />
                     Memuat data pengguna...
                   </td>
@@ -333,8 +455,20 @@ export default function UsersPage() {
                 filtered.map((u) => {
                   const rc = roleConfig[u.role];
                   const Icon = rc.icon;
+                  const isSelected = selectedIds.has(u.id);
                   return (
-                    <tr key={u.id}>
+                    <tr
+                      key={u.id}
+                      className={isSelected ? "bg-indigo-50/60" : undefined}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(u.id)}
+                        />
+                      </td>
                       <td>
                         <div className="flex items-center gap-3">
                           <div
@@ -392,7 +526,7 @@ export default function UsersPage() {
                 })}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400">
+                  <td colSpan={9} className="text-center py-10 text-gray-400">
                     {list.length === 0
                       ? "Belum ada pengguna. Klik \"Tambah Pengguna\" atau import dari Excel."
                       : "Tidak ada pengguna ditemukan"}
@@ -404,7 +538,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal Tambah / Edit Pengguna */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
@@ -541,6 +675,100 @@ export default function UsersPage() {
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editData ? "Simpan Perubahan" : "Tambah Pengguna"}
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Ubah Password Massal */}
+      {showBulkPassModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
+          <form
+            onSubmit={handleBulkPassword}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in"
+          >
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-gray-800 font-bold">Ubah Password Massal</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkPassModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-light"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Info pengguna terpilih */}
+              <div className="px-4 py-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs">
+                Password akan diubah untuk <strong>{selectedIds.size} pengguna</strong> yang dipilih.
+              </div>
+
+              {bulkError && (
+                <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+                  {bulkError}
+                </div>
+              )}
+
+              {bulkResult && (
+                <div className="px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs">
+                  {bulkResult}
+                </div>
+              )}
+
+              {!bulkResult && (
+                <div>
+                  <label className="form-label">Password Baru *</label>
+                  <div className="relative">
+                    <input
+                      type={showBulkPass ? "text" : "password"}
+                      className="form-input pr-10"
+                      required
+                      minLength={8}
+                      value={bulkPassword}
+                      onChange={(e) => setBulkPassword(e.target.value)}
+                      placeholder="Minimal 8 karakter"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkPass(!showBulkPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      {showBulkPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Semua pengguna yang dipilih akan mendapat password yang sama.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkPassModal(false)}
+                className="btn bg-gray-100 text-gray-600 hover:bg-gray-200"
+              >
+                {bulkResult ? "Tutup" : "Batal"}
+              </button>
+              {!bulkResult && (
+                <button
+                  type="submit"
+                  disabled={bulkSaving}
+                  className="btn-primary disabled:opacity-60"
+                >
+                  {bulkSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Ubah Password
+                </button>
+              )}
             </div>
           </form>
         </div>
