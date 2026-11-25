@@ -131,5 +131,7 @@ export async function GET(req: NextRequest) {
     dimensiRadar,
     distribusiPredikat,
     taList,
+    taAktif: settings.tahunAjaran,
+    semesterAktif: settings.semester,
   });
 }

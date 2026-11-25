@@ -39,6 +39,8 @@ interface LaporanData {
   dimensiRadar: { dimensi: string; nilai: number }[];
   distribusiPredikat: { predikat: string; jumlah: number }[];
   taList: string[];
+  taAktif: string;
+  semesterAktif: string;
 }
 
 export default function LaporanPage() {
@@ -47,27 +49,36 @@ export default function LaporanPage() {
   const [data, setData] = useState<LaporanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [initialized, setInitialized] = useState(false);
 
-  const fetchLaporan = useCallback(async () => {
+  const fetchLaporan = useCallback(async (ta: string, semester: string) => {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams();
-      if (filterTA) params.set("ta", filterTA);
-      if (filterSemester) params.set("semester", filterSemester);
+      if (ta) params.set("ta", ta);
+      if (semester) params.set("semester", semester);
       const res = await fetch(`/api/laporan?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memuat laporan");
       setData(json);
+      // Set default filter ke tahun ajaran aktif hanya sekali saat pertama load
+      if (!initialized) {
+        setFilterTA(json.taAktif ?? "");
+        setFilterSemester(json.semesterAktif ?? "");
+        setInitialized(true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memuat laporan");
     } finally {
       setLoading(false);
     }
-  }, [filterTA, filterSemester]);
+  }, [initialized]);
 
   useEffect(() => {
-    fetchLaporan();
+    fetchLaporan(filterTA, filterSemester);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterTA, filterSemester]);
   }, [fetchLaporan]);
 
   const rekapGuru = data?.rekap ?? [];
