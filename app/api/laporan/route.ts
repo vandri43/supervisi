@@ -51,21 +51,19 @@ export async function GET(req: NextRequest) {
   };
 
   const rekap = siklusFiltered.map((s) => {
-    const nilaiAkhir =
-      s.pascaSupervisi?.selesai
-        ? s.pascaSupervisi.nilaiAkhir
-        : s.observasiKelas?.selesai
-        ? s.observasiKelas.nilaiAkhir
-        : s.praObservasi?.selesai
-        ? s.praObservasi.nilaiAkhir
-        : null;
+    // Hitung nilai dari indikator langsung (sama seperti dashboard)
+    // agar konsisten meski tahap belum di-"selesai"kan
+    const praVal = s.praObservasi ? skorRata(s.praObservasi.indikator, 180) : null;
+    const obsVal = s.observasiKelas ? skorRata(s.observasiKelas.indikator, 176) : null;
+    const pascaVal = s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : null;
+
+    // Nilai akhir = dari tahap terjauh yang sudah ada data
+    const nilaiAkhir = pascaVal ?? obsVal ?? praVal;
     const predikat =
       s.pascaSupervisi?.selesai
         ? s.pascaSupervisi.predikat
-        : s.observasiKelas?.selesai
-        ? s.observasiKelas.predikat
-        : s.praObservasi?.selesai
-        ? s.praObservasi.predikat
+        : nilaiAkhir !== null
+        ? nilaiAkhir >= 91 ? "SANGAT_BAIK" : nilaiAkhir >= 81 ? "BAIK" : nilaiAkhir >= 71 ? "CUKUP" : "KURANG"
         : null;
 
     return {
@@ -76,9 +74,9 @@ export async function GET(req: NextRequest) {
       kelas: s.kelas,
       topik: s.topikPembelajaran,
       status: s.status,
-      pra: s.praObservasi ? skorRata(s.praObservasi.indikator, 180) : null,
-      observasi: s.observasiKelas ? skorRata(s.observasiKelas.indikator, 176) : null,
-      pasca: s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : null,
+      pra: praVal,
+      observasi: obsVal,
+      pasca: pascaVal,
       nilaiAkhir,
       predikat,
       tahunAjaran: s.tahunAjaran,
