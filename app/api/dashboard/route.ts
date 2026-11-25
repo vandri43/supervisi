@@ -186,7 +186,7 @@ export async function GET() {
     }
     const guruList = Array.from(guruMap.values())
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(0, 6)
+      .slice(0, 10)
       .map((g) => ({
         nama: g.nama,
         mapel: g.mapel ?? "-",
