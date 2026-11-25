@@ -10,8 +10,15 @@ import Badge, { predikatBadge, statusBadge } from "@/components/ui/Badge";
 import {
   ArrowLeft, Loader2, Trash2, User, School, Calendar, BookOpen,
   FileSearch, Eye, ClipboardCheck, ChevronRight, AlertTriangle, Printer,
-  Paperclip, Camera,
+  Paperclip, Camera, Pencil, X, Save, CheckCircle2,
 } from "lucide-react";
+
+interface GuruOption {
+  id: string;
+  nama: string;
+  mapel: string | null;
+  sekolahNama: string | null;
+}
 
 interface SiklusDetail {
   id: string;
@@ -65,6 +72,94 @@ export default function SiklusDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // ── State modal edit ──────────────────────────────────────────────────────
+  const [showEdit, setShowEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [guruList, setGuruList] = useState<GuruOption[]>([]);
+  const [guruLoading, setGuruLoading] = useState(false);
+  const [form, setForm] = useState({
+    guruId: "",
+    kelas: "",
+    mapel: "",
+    topikPembelajaran: "",
+    tanggalMulai: "",
+    tanggalSelesai: "",
+    catatan: "",
+  });
+
+  // Isi form saat data siklus dimuat
+  const initForm = (d: SiklusDetail) => {
+    setForm({
+      guruId: d.guru.id,
+      kelas: d.kelas ?? "",
+      mapel: d.mapel ?? "",
+      topikPembelajaran: d.topikPembelajaran ?? "",
+      tanggalMulai: d.tanggalMulai ? d.tanggalMulai.slice(0, 10) : "",
+      tanggalSelesai: d.tanggalSelesai ? d.tanggalSelesai.slice(0, 10) : "",
+      catatan: d.catatan ?? "",
+    });
+  };
+
+  const fetchGuru = useCallback(async () => {
+    setGuruLoading(true);
+    try {
+      const res = await fetch("/api/users");
+      const json = await res.json();
+      const list = Array.isArray(json) ? json.filter((u: { role: string }) => u.role === "GURU") : [];
+      setGuruList(list.map((u: { id: string; nama: string; mapel: string | null; sekolah?: { nama: string } | null }) => ({
+        id: u.id,
+        nama: u.nama,
+        mapel: u.mapel ?? null,
+        sekolahNama: u.sekolah?.nama ?? null,
+      })));
+    } catch {
+      // abaikan
+    } finally {
+      setGuruLoading(false);
+    }
+  }, []);
+
+  const openEdit = () => {
+    if (data) initForm(data);
+    fetchGuru();
+    setSaveMsg("");
+    setSaveError("");
+    setShowEdit(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError("");
+    setSaveMsg("");
+    try {
+      const res = await fetch(`/api/siklus/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guruId: form.guruId,
+          kelas: form.kelas,
+          mapel: form.mapel,
+          topikPembelajaran: form.topikPembelajaran,
+          tanggalMulai: form.tanggalMulai,
+          tanggalSelesai: form.tanggalSelesai,
+          catatan: form.catatan,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menyimpan");
+      setSaveMsg("Perubahan berhasil disimpan.");
+      await fetchDetail();
+      setTimeout(() => setShowEdit(false), 900);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Gagal menyimpan");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -166,7 +261,7 @@ export default function SiklusDetailPage() {
         {/* Header card */}
         <div className="card p-6 mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <h2 className="text-lg font-bold text-gray-800">{data.guru.nama}</h2>
                 <Badge variant={sb.variant as "success" | "warning" | "danger" | "info" | "primary" | "default"}>{sb.label}</Badge>
@@ -179,12 +274,22 @@ export default function SiklusDetailPage() {
                 <p className="text-xs text-gray-400 italic mt-1">&quot;{data.topikPembelajaran}&quot;</p>
               )}
             </div>
-            {nilaiSiklus !== null && (
-              <div className="text-right">
-                <p className="text-3xl font-bold text-gray-800">{nilaiSiklus.toFixed(1)}</p>
-                <p className="text-xs text-gray-400">Nilai Akhir</p>
-              </div>
-            )}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {nilaiSiklus !== null && (
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-gray-800">{nilaiSiklus.toFixed(1)}</p>
+                  <p className="text-xs text-gray-400">Nilai Akhir</p>
+                </div>
+              )}
+              <button
+                onClick={openEdit}
+                className="btn bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center gap-2"
+                title="Edit informasi siklus"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit
+              </button>
+            </div>
           </div>
 
           {/* Info grid */}
@@ -353,6 +458,157 @@ export default function SiklusDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ══════════════ MODAL EDIT SIKLUS ══════════════ */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowEdit(false)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header modal */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-gray-800 font-bold text-base flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-indigo-500" /> Edit Siklus Supervisi
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">Perubahan langsung tersimpan ke data siklus</p>
+              </div>
+              <button onClick={() => setShowEdit(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+
+              {/* Guru */}
+              <div>
+                <label className="form-label">Guru yang Disupervisi</label>
+                {guruLoading ? (
+                  <div className="form-input flex items-center gap-2 text-gray-400 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar guru...
+                  </div>
+                ) : (
+                  <select
+                    className="form-select w-full"
+                    value={form.guruId}
+                    onChange={(e) => {
+                      const g = guruList.find((x) => x.id === e.target.value);
+                      setForm((f) => ({
+                        ...f,
+                        guruId: e.target.value,
+                        mapel: g?.mapel ?? f.mapel,
+                      }));
+                    }}
+                  >
+                    <option value="">— Pilih Guru —</option>
+                    {guruList.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nama}{g.mapel ? ` · ${g.mapel}` : ""}{g.sekolahNama ? ` · ${g.sekolahNama}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Kelas & Mapel */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Kelas <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="X-TKJ-1"
+                    value={form.kelas}
+                    onChange={(e) => setForm((f) => ({ ...f, kelas: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Mata Pelajaran</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Matematika"
+                    value={form.mapel}
+                    onChange={(e) => setForm((f) => ({ ...f, mapel: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Topik */}
+              <div>
+                <label className="form-label">Topik / Materi Pembelajaran</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Contoh: Sistem Persamaan Linear"
+                  value={form.topikPembelajaran}
+                  onChange={(e) => setForm((f) => ({ ...f, topikPembelajaran: e.target.value }))}
+                />
+              </div>
+
+              {/* Tanggal */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Tanggal Mulai</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={form.tanggalMulai}
+                    onChange={(e) => setForm((f) => ({ ...f, tanggalMulai: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Tanggal Selesai</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={form.tanggalSelesai}
+                    onChange={(e) => setForm((f) => ({ ...f, tanggalSelesai: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Catatan */}
+              <div>
+                <label className="form-label">Catatan (Opsional)</label>
+                <textarea
+                  className="form-input resize-none"
+                  rows={3}
+                  placeholder="Catatan tambahan..."
+                  value={form.catatan}
+                  onChange={(e) => setForm((f) => ({ ...f, catatan: e.target.value }))}
+                />
+              </div>
+
+              {/* Pesan sukses / error */}
+              {saveMsg && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {saveMsg}
+                </div>
+              )}
+              {saveError && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {saveError}
+                </div>
+              )}
+
+              {/* Tombol aksi */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setShowEdit(false)} className="btn bg-gray-100 text-gray-600 hover:bg-gray-200">
+                  Batal
+                </button>
+                <button type="submit" disabled={saving} className="btn btn-primary disabled:opacity-60 flex items-center gap-2">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
