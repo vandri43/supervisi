@@ -79,7 +79,6 @@ export default function LaporanPage() {
     fetchLaporan(filterTA, filterSemester);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterTA, filterSemester]);
-  }, [fetchLaporan]);
 
   const rekapGuru = data?.rekap ?? [];
   const selesai = rekapGuru.filter((g) => g.status === "SELESAI");
