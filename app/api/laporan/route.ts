@@ -44,17 +44,18 @@ export async function GET(req: NextRequest) {
   }
   const siklusFiltered = Array.from(latestPerGuru.values());
 
-  const skorRata = (indikator: { skor: number }[], maks: number) => {
+  const skorRata = (indikator: { skor: number }[]) => {
     if (indikator.length === 0) return null;
     const total = indikator.reduce((a, i) => a + i.skor, 0);
+    const maks = indikator.length * 4; // dinamis dari jumlah indikator aktual
     return maks > 0 ? Number(((total / maks) * 100).toFixed(1)) : null;
   };
 
   const rekap = siklusFiltered.map((s) => {
     // Hitung nilai dari indikator langsung (sama seperti dashboard)
     // agar konsisten meski tahap belum di-"selesai"kan
-    const praVal = s.praObservasi ? skorRata(s.praObservasi.indikator, 180) : null;
-    const obsVal = s.observasiKelas ? skorRata(s.observasiKelas.indikator, 176) : null;
+    const praVal = s.praObservasi ? skorRata(s.praObservasi.indikator) : null;
+    const obsVal = s.observasiKelas ? skorRata(s.observasiKelas.indikator) : null;
     const pascaVal = s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : null;
 
     // Nilai akhir = dari tahap terjauh yang sudah ada data

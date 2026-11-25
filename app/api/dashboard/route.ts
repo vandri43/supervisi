@@ -181,13 +181,15 @@ export async function GET() {
         const indikator = (s as typeof s & { praObservasi: { indikator?: { skor: number }[] } | null }).praObservasi?.indikator;
         if (!indikator || indikator.length === 0) return null;
         const total = indikator.reduce((a: number, i: { skor: number }) => a + i.skor, 0);
-        return Number(((total / 180) * 100).toFixed(1));
+        const maks = indikator.length * 4;
+        return Number(((total / maks) * 100).toFixed(1));
       })() : null;
       const observasi = s.observasiKelas ? (() => {
         const indikator = s.observasiKelas?.indikator;
         if (!indikator || indikator.length === 0) return null;
         const total = indikator.reduce((a, i) => a + i.skor, 0);
-        return Number(((total / 176) * 100).toFixed(1));
+        const maks = indikator.length * 4;
+        return Number(((total / maks) * 100).toFixed(1));
       })() : null;
       const pasca = s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : null;
       const nilai = pasca ?? observasi ?? pra;
