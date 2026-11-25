@@ -131,6 +131,7 @@ export async function GET() {
       where: { supervisorId: session.user.id, ...tahunAktif },
       include: {
         guru: { select: { id: true, nama: true, mapel: true } },
+        praObservasi: { include: { indikator: { select: { skor: true } } } },
         pascaSupervisi: { select: { nilaiAkhir: true, selesai: true } },
         observasiKelas: { include: { indikator: { select: { komponen: true, skor: true } } } },
       },
@@ -169,17 +170,37 @@ export async function GET() {
     }));
 
     // Daftar guru binaan dengan status siklus terbarunya
-    const guruMap = new Map<string, { nama: string; mapel: string | null; status: string; nilai: number | null; predikat: string | null; updatedAt: Date }>();
+    const guruMap = new Map<string, {
+      nama: string; mapel: string | null; status: string;
+      nilai: number | null; pra: number | null; observasi: number | null; pasca: number | null;
+      siklusId: string; updatedAt: Date;
+    }>();
     for (const s of siklus) {
       const existing = guruMap.get(s.guru.id);
-      const nilai = s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : (existing?.nilai ?? null);
+      const pra = s.praObservasi ? (() => {
+        const indikator = (s as typeof s & { praObservasi: { indikator?: { skor: number }[] } | null }).praObservasi?.indikator;
+        if (!indikator || indikator.length === 0) return null;
+        const total = indikator.reduce((a: number, i: { skor: number }) => a + i.skor, 0);
+        return Number(((total / 180) * 100).toFixed(1));
+      })() : null;
+      const observasi = s.observasiKelas ? (() => {
+        const indikator = s.observasiKelas?.indikator;
+        if (!indikator || indikator.length === 0) return null;
+        const total = indikator.reduce((a, i) => a + i.skor, 0);
+        return Number(((total / 176) * 100).toFixed(1));
+      })() : null;
+      const pasca = s.pascaSupervisi?.selesai ? s.pascaSupervisi.nilaiAkhir : null;
+      const nilai = pasca ?? observasi ?? pra;
       if (!existing || s.updatedAt > existing.updatedAt) {
         guruMap.set(s.guru.id, {
           nama: s.guru.nama,
           mapel: s.guru.mapel,
           status: s.status,
           nilai,
-          predikat: null,
+          pra,
+          observasi,
+          pasca,
+          siklusId: s.id,
           updatedAt: s.updatedAt,
         });
       }
@@ -192,6 +213,10 @@ export async function GET() {
         mapel: g.mapel ?? "-",
         status: g.status,
         nilai: g.nilai,
+        pra: g.pra,
+        observasi: g.observasi,
+        pasca: g.pasca,
+        siklusId: g.siklusId,
         lastUpdate: formatRelatif(g.updatedAt),
       }));
 

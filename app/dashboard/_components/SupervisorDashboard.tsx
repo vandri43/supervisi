@@ -35,7 +35,11 @@ interface DashboardData {
   stats: { guruBinaan: number; berjalan: number; selesai: number; totalSiklus: number };
   radarData: { dimensi: string; nilai: number }[];
   barData: { nama: string; nilai: number }[];
-  guruList: { nama: string; mapel: string; status: string; nilai: number | null; lastUpdate: string }[];
+  guruList: {
+    nama: string; mapel: string; status: string;
+    nilai: number | null; pra: number | null; observasi: number | null; pasca: number | null;
+    siklusId: string; lastUpdate: string;
+  }[];
 }
 
 export default function SupervisorDashboard({ session }: { session: Session }) {
@@ -184,8 +188,11 @@ export default function SupervisorDashboard({ session }: { session: Session }) {
                 <thead>
                   <tr>
                     <th>Guru</th>
-                    <th>Status Siklus</th>
-                    <th>Nilai</th>
+                    <th>Status</th>
+                    <th className="text-center">Pra</th>
+                    <th className="text-center">Observasi</th>
+                    <th className="text-center">Pasca</th>
+                    <th className="text-center">Nilai Akhir</th>
                     <th>Update</th>
                     <th></th>
                   </tr>
@@ -193,23 +200,32 @@ export default function SupervisorDashboard({ session }: { session: Session }) {
                 <tbody>
                   {data.guruList.map((g) => {
                     const sb = statusBadge(g.status);
+                    const nilaiCell = (v: number | null) =>
+                      v !== null ? (
+                        <span className="font-semibold text-gray-700 text-xs">{v.toFixed(1)}</span>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      );
                     return (
-                      <tr key={g.nama}>
+                      <tr key={g.nama + g.siklusId}>
                         <td>
                           <p className="font-medium text-gray-700 text-xs">{g.nama}</p>
-                          <p className="text-gray-400 text-xs">{g.mapel}</p>
+                          <p className="text-gray-400 text-[11px]">{g.mapel}</p>
                         </td>
                         <td><Badge variant={sb.variant as BadgeVariant}>{sb.label}</Badge></td>
-                        <td>
+                        <td className="text-center">{nilaiCell(g.pra)}</td>
+                        <td className="text-center">{nilaiCell(g.observasi)}</td>
+                        <td className="text-center">{nilaiCell(g.pasca)}</td>
+                        <td className="text-center">
                           {g.nilai !== null ? (
-                            <span className="font-bold text-gray-700 text-sm">{g.nilai.toFixed(1)}</span>
+                            <span className="font-bold text-indigo-600 text-sm">{g.nilai.toFixed(1)}</span>
                           ) : (
                             <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
                         <td className="text-gray-400 text-xs">{g.lastUpdate}</td>
                         <td>
-                          <Link href="/supervisor/siklus" className="text-argon-primary hover:text-argon-primary-dark">
+                          <Link href={`/supervisor/siklus/${g.siklusId}`} className="text-argon-primary hover:text-argon-primary-dark">
                             <ChevronRight className="w-4 h-4" />
                           </Link>
                         </td>
