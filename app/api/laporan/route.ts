@@ -32,13 +32,25 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Jika satu guru punya lebih dari satu siklus dalam tahun ajaran+semester yang sama,
+  // tampilkan hanya yang terbaru (createdAt terbesar) — siklus lama yg sudah diganti
+  // tidak ikut masuk rekap.
+  const latestPerGuru = new Map<string, typeof siklus[0]>();
+  for (const s of siklus) {
+    const key = `${s.guruId}-${s.tahunAjaran}-${s.semester}`;
+    if (!latestPerGuru.has(key)) {
+      latestPerGuru.set(key, s); // sudah diurutkan desc, jadi index pertama = terbaru
+    }
+  }
+  const siklusFiltered = Array.from(latestPerGuru.values());
+
   const skorRata = (indikator: { skor: number }[], maks: number) => {
     if (indikator.length === 0) return null;
     const total = indikator.reduce((a, i) => a + i.skor, 0);
     return maks > 0 ? Number(((total / maks) * 100).toFixed(1)) : null;
   };
 
-  const rekap = siklus.map((s) => {
+  const rekap = siklusFiltered.map((s) => {
     const nilaiAkhir =
       s.pascaSupervisi?.selesai
         ? s.pascaSupervisi.nilaiAkhir
@@ -77,7 +89,7 @@ export async function GET(req: NextRequest) {
   // Rata-rata dimensi dari seluruh indikator observasi (pakai field dimensi; fallback nama komponen untuk data lama)
   const dimAgg: Record<string, { total: number; count: number }> = {};
   const dimKeys = ["BBM", "3M", "Literasi", "Numerasi", "Asesmen"];
-  for (const s of siklus) {
+  for (const s of siklusFiltered) {
     for (const ind of s.observasiKelas?.indikator ?? []) {
       const dim =
         (ind as { dimensi?: string | null }).dimensi &&
@@ -98,7 +110,7 @@ export async function GET(req: NextRequest) {
   const distribusiPredikat = ["KURANG", "CUKUP", "BAIK", "SANGAT_BAIK"].map((p) => ({
     predikat:
       p === "KURANG" ? "Kurang" : p === "CUKUP" ? "Cukup" : p === "BAIK" ? "Baik" : "Sangat Baik",
-    jumlah: siklus.filter((s) => s.pascaSupervisi?.selesai && s.pascaSupervisi.predikat === p).length,
+    jumlah: siklusFiltered.filter((s) => s.pascaSupervisi?.selesai && s.pascaSupervisi.predikat === p).length,
   }));
 
   // Daftar tahun ajaran untuk filter: tahun yang punya siklus + tahun ajaran aktif,
