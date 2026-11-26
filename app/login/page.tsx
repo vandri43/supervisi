@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Eye, EyeOff, Loader2, ShieldCheck, BarChart3, TrendingUp, Users, ClipboardCheck, Camera, Film, X, FileBadge, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldCheck, BarChart3, ClipboardCheck, Camera, Film, X, FileBadge, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import BrandHeader from "@/components/BrandHeader";
 
 // Recharts (~130KB) dimuat LAZY terpisah — halaman login tampil lebih cepat
@@ -270,11 +270,11 @@ export default function LoginPage() {
                     <p className="text-white/80 text-sm font-semibold mb-3">Distribusi Predikat</p>
                     <div className="space-y-2.5">
                       {[
-                        { p: "SANGAT_BAIK", label: "Sangat Baik", color: "#2dce89", bg: "bg-emerald-500/20" },
-                        { p: "BAIK", label: "Baik", color: "#5e72e4", bg: "bg-indigo-500/20" },
-                        { p: "CUKUP", label: "Cukup", color: "#fb6340", bg: "bg-orange-500/20" },
-                        { p: "KURANG", label: "Kurang", color: "#f5365c", bg: "bg-rose-500/20" },
-                      ].map(({ p, label, color, bg }) => {
+                        { p: "SANGAT_BAIK", label: "Sangat Baik", color: "#2dce89" },
+                        { p: "BAIK", label: "Baik", color: "#5e72e4" },
+                        { p: "CUKUP", label: "Cukup", color: "#fb6340" },
+                        { p: "KURANG", label: "Kurang", color: "#f5365c" },
+                      ].map(({ p, label, color }) => {
                         const d = distribusi.find((x) => x.predikat === p);
                         const jumlah = d?.jumlah ?? 0;
                         const total = distribusi.reduce((a, x) => a + x.jumlah, 0);
