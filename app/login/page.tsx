@@ -56,182 +56,54 @@ interface SkItem {
   keterangan: string | null;
 }
 
-// ─── Carousel galeri dokumentasi ────────────────────────────────────────────
-function GaleriCarousel({ items, onLihat }: { items: GaleriItem[]; onLihat: (g: GaleriItem) => void }) {
-  const [aktif, setAktif] = useState(0);
-  const [pause, setPause] = useState(false);
-  const total = items.length;
-
-  // Auto-play setiap 4 detik
-  useEffect(() => {
-    if (pause || total <= 1) return;
-    const t = setInterval(() => setAktif((p) => (p + 1) % total), 4000);
-    return () => clearInterval(t);
-  }, [pause, total]);
-
-  const prev = () => { setPause(true); setAktif((p) => (p - 1 + total) % total); };
-  const next = () => { setPause(true); setAktif((p) => (p + 1) % total); };
-  const goto = (i: number) => { setPause(true); setAktif(i); };
-
-  const item = items[aktif];
-
-  const mediaSrc = (g: GaleriItem) => {
-    if (g.tipe === "link" && g.provider === "YOUTUBE" && g.providerId)
-      return `https://i.ytimg.com/vi/${g.providerId}/hqdefault.jpg`;
-    if (g.tipe !== "link") return g.url;
-    return null;
-  };
-
+// ─── Thumbnail kartu galeri (untuk grid) ────────────────────────────────────
+function GaleriThumb({ item, besar = false, onClick }: { item: GaleriItem; besar?: boolean; onClick: () => void }) {
   return (
-    <section
-      className="mt-6 rounded-2xl overflow-hidden shadow-2xl"
-      style={{ background: "linear-gradient(135deg, rgba(16,24,56,0.97) 0%, rgba(10,20,40,0.99) 100%)", border: "1px solid rgba(255,255,255,0.08)" }}
-      aria-label="Dokumentasi kegiatan observasi kelas"
-      onMouseEnter={() => setPause(true)}
-      onMouseLeave={() => setPause(false)}
+    <button
+      onClick={onClick}
+      className={`group relative w-full rounded-xl overflow-hidden border border-white/10 bg-black/40 block ${besar ? "aspect-[16/9] lg:aspect-[4/3]" : "aspect-[4/3]"}`}
+      style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.4)" }}
     >
-      {/* Header */}
-      <div className="px-6 lg:px-8 pt-5 pb-4 flex items-center justify-between gap-4 flex-wrap border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg,#2dce89,#2dcecc)" }}>
-              <Camera className="w-4 h-4 text-white" />
-            </div>
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0f1428] animate-pulse" />
-          </div>
-          <div>
-            <h2 className="text-white font-bold text-sm lg:text-base leading-tight">Perjalanan Observasi Kelas</h2>
-            <p className="text-white/40 text-[11px]">Dokumentasi nyata kegiatan supervisi pembelajaran di sekolah</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-white/40 text-xs">{aktif + 1} / {total}</span>
-          <button onClick={prev} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors" aria-label="Sebelumnya">
-            <ChevronLeft className="w-4 h-4 text-white" />
-          </button>
-          <button onClick={next} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors" aria-label="Berikutnya">
-            <ChevronRight className="w-4 h-4 text-white" />
-          </button>
-        </div>
-      </div>
-
-      {/* Slide utama */}
-      <div className="relative w-full" style={{ aspectRatio: "16/7" }}>
-        {/* Gambar/video */}
-        {item.tipe === "video" ? (
-          <video src={item.url} className="w-full h-full object-cover" preload="metadata" muted playsInline />
-        ) : item.tipe === "link" && item.provider === "YOUTUBE" && item.providerId ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`https://i.ytimg.com/vi/${item.providerId}/hqdefault.jpg`} alt={item.topik ?? ""} className="w-full h-full object-cover" />
-        ) : item.tipe === "foto" ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.url} alt={item.topik ?? "Dokumentasi observasi"} className="w-full h-full object-cover" loading="lazy" key={item.id} />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-white/5">
-            <Film className="w-10 h-10 text-white/30" />
-          </div>
-        )}
-
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
-
-        {/* Klik untuk perbesar */}
-        <button
-          onClick={() => onLihat(item)}
-          className="absolute inset-0 w-full h-full cursor-zoom-in"
-          aria-label="Perbesar foto"
-        />
-
-        {/* Play icon untuk video */}
-        {(item.tipe === "video" || (item.tipe === "link" && item.provider === "YOUTUBE")) && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-14 h-14 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-              <Film className="w-6 h-6 text-white ml-1" />
-            </div>
-          </div>
-        )}
-
-        {/* Info bawah */}
-        <div className="absolute inset-x-0 bottom-0 px-5 pb-4 pointer-events-none">
-          {item.topik && <p className="text-white font-semibold text-sm lg:text-base drop-shadow">{item.topik}</p>}
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-white/60 text-[11px]">
-              {item.tipe === "video" ? "🎬 Video" : item.tipe === "link" ? "🔗 Link" : "📷 Foto"}
+      {item.tipe === "link" && item.provider === "YOUTUBE" && item.providerId ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`https://i.ytimg.com/vi/${item.providerId}/hqdefault.jpg`} alt={item.topik ?? ""} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="w-11 h-11 rounded-full bg-red-600/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+              <Film className="w-5 h-5 text-white ml-0.5" />
             </span>
-            <span className="text-white/30 text-[10px]">·</span>
-            <span className="text-white/50 text-[11px]">{item.sumber === "pengawas" ? "Supervisor" : "Guru"}</span>
-          </div>
+          </span>
+        </>
+      ) : item.tipe === "link" ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-purple-900/60 to-indigo-900/60">
+          <Film className="w-7 h-7 text-purple-300" />
+          <span className="text-[11px] text-white/60">{item.provider === "GDRIVE" ? "Google Drive" : "Link"}</span>
         </div>
-
-        {/* Tombol kiri kanan di atas slide */}
-        {total > 1 && (
-          <>
-            <button
-              onClick={prev}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 flex items-center justify-center transition-colors z-10"
-              aria-label="Sebelumnya"
-            >
-              <ChevronLeft className="w-5 h-5 text-white" />
-            </button>
-            <button
-              onClick={next}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 flex items-center justify-center transition-colors z-10"
-              aria-label="Berikutnya"
-            >
-              <ChevronRight className="w-5 h-5 text-white" />
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Thumbnail strip */}
-      {total > 1 && (
-        <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto scrollbar-hide border-t border-white/5">
-          {items.map((g, i) => {
-            const src = mediaSrc(g);
-            return (
-              <button
-                key={g.id}
-                onClick={() => goto(i)}
-                className={`flex-shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${
-                  i === aktif ? "border-emerald-400 scale-105" : "border-white/10 opacity-50 hover:opacity-80"
-                }`}
-              >
-                {src ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
-                ) : (
-                  <div className="w-full h-full bg-white/10 flex items-center justify-center">
-                    <Film className="w-3 h-3 text-white/50" />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      ) : item.tipe === "video" ? (
+        <>
+          <video src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" preload="metadata" muted playsInline />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Film className="w-4 h-4 text-white ml-0.5" />
+            </span>
+          </span>
+        </>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.url} alt={item.topik ?? "Dokumentasi observasi"} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
       )}
-
-      {/* Dot indicator + footer */}
-      <div className="px-6 py-3 flex items-center justify-between border-t border-white/5">
-        <div className="flex items-center gap-1.5">
-          {items.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goto(i)}
-              className={`rounded-full transition-all ${i === aktif ? "w-5 h-2 bg-emerald-400" : "w-2 h-2 bg-white/20 hover:bg-white/40"}`}
-              aria-label={`Slide ${i + 1}`}
-            />
-          ))}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pt-6 pb-2">
+        {item.topik && <p className={`text-white font-medium truncate ${besar ? "text-sm" : "text-[11px]"}`}>{item.topik}</p>}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className={`text-white/50 ${besar ? "text-xs" : "text-[10px]"}`}>{item.tipe === "video" ? "🎬 Video" : item.tipe === "link" ? "🔗 Link" : "📷 Foto"}</span>
+          <span className="text-white/20 text-[9px]">·</span>
+          <span className={`text-white/40 ${besar ? "text-xs" : "text-[10px]"}`}>{item.sumber === "pengawas" ? "Supervisor" : "Guru"}</span>
         </div>
-        <p className="text-white/25 text-[10px]">Dokumentasi bukti otentik supervisi pembelajaran</p>
       </div>
-    </section>
+    </button>
   );
 }
 
-
-// ─── Halaman Login ───────────────────────────────────────────────────────────
 // ─── Halaman Login ───────────────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
@@ -455,7 +327,7 @@ export default function LoginPage() {
           </section>
         </div>
 
-        {/* ================= GALERI CAROUSEL DOKUMENTASI OBSERVASI ================= */}
+        {/* ================= GALERI DOKUMENTASI OBSERVASI KELAS ================= */}
         {!galeriLoaded ? (
           <section className="mt-6 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 p-6 lg:p-8 shadow-2xl">
             <div className="h-56 flex items-center justify-center text-white/40 text-sm">
@@ -463,10 +335,90 @@ export default function LoginPage() {
             </div>
           </section>
         ) : galeri.length > 0 && (
-          <GaleriCarousel
-            items={galeri}
-            onLihat={(g) => setGaleriLihat(g)}
-          />
+          <section
+            className="mt-6 rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "linear-gradient(135deg, rgba(16,24,56,0.95) 0%, rgba(10,20,40,0.98) 100%)", border: "1px solid rgba(255,255,255,0.08)" }}
+            aria-label="Dokumentasi kegiatan observasi kelas"
+          >
+            {/* Header */}
+            <div className="px-6 lg:px-8 pt-5 pb-4 flex items-center justify-between gap-4 flex-wrap border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#2dce89,#2dcecc)" }}>
+                    <Camera className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0f1428] animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-white font-bold text-sm lg:text-base">Perjalanan Observasi Kelas</h2>
+                  <p className="text-white/40 text-[11px]">Dokumentasi nyata kegiatan supervisi pembelajaran di sekolah</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                {galeri.filter((g) => g.tipe === "foto").length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-emerald-300 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-2.5 py-1">
+                    <Camera className="w-3 h-3" /> {galeri.filter((g) => g.tipe === "foto").length} Foto
+                  </span>
+                )}
+                {galeri.filter((g) => g.tipe !== "foto").length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-blue-300 bg-blue-400/10 border border-blue-400/20 rounded-full px-2.5 py-1">
+                    <Film className="w-3 h-3" /> {galeri.filter((g) => g.tipe !== "foto").length} Video/Link
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Grid layout: hero kiri besar + grid kanan */}
+            <div className="p-4 lg:p-5">
+              {galeri.length === 1 ? (
+                <GaleriThumb item={galeri[0]} besar onClick={() => setGaleriLihat(galeri[0])} />
+              ) : galeri.length <= 3 ? (
+                <div className={`grid gap-3 ${galeri.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                  {galeri.map((g) => <GaleriThumb key={g.id} item={g} onClick={() => setGaleriLihat(g)} />)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+                  {/* Hero besar */}
+                  <div className="lg:col-span-3">
+                    <GaleriThumb item={galeri[0]} besar onClick={() => setGaleriLihat(galeri[0])} />
+                  </div>
+                  {/* Grid 2×2 kanan */}
+                  <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                    {galeri.slice(1, 5).map((g, idx) => (
+                      <div key={g.id} className="relative">
+                        <GaleriThumb item={g} onClick={() => setGaleriLihat(g)} />
+                        {idx === 3 && galeri.length > 5 && (
+                          <button
+                            onClick={() => setGaleriLihat(galeri[5])}
+                            className="absolute inset-0 rounded-xl bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-1 hover:bg-black/50 transition-colors"
+                          >
+                            <span className="text-white text-2xl font-bold">+{galeri.length - 5}</span>
+                            <span className="text-white/60 text-xs">foto lainnya</span>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Strip topik */}
+              {galeri.some((g) => g.topik) && (
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <span className="text-white/30 text-[11px]">Topik:</span>
+                  {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).slice(0, 6).map((t) => (
+                    <span key={t} className="text-[11px] text-white/50 bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">{t}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 lg:px-8 py-3 border-t border-white/5 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <p className="text-white/25 text-[11px]">Dokumentasi kegiatan supervisi guru sebagai bukti otentik peningkatan mutu pembelajaran</p>
+            </div>
+          </section>
         )}
 
         {/* ================= DOKUMEN SK PUBLIK ================= */}
