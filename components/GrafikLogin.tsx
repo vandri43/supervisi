@@ -38,17 +38,17 @@ const WARNA_PREDIKAT: Record<string, string> = {
 
 export default function GrafikLogin({ perGuru }: GrafikLoginProps) {
   return (
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={perGuru} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
-            axisLine={{ stroke: "rgba(255,255,255,0.15)" }}
-            tickLine={false}
-            interval={0}
-          />
+    <div>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={perGuru} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={false}
+              axisLine={{ stroke: "rgba(255,255,255,0.15)" }}
+              tickLine={false}
+            />
           <YAxis
             domain={[0, 100]}
             tick={{ fontSize: 11, fill: "rgba(255,255,255,0.55)" }}
@@ -75,5 +75,9 @@ export default function GrafikLogin({ perGuru }: GrafikLoginProps) {
         </BarChart>
       </ResponsiveContainer>
     </div>
+    <p className="text-white/30 text-[11px] text-center mt-1">
+      {perGuru.length} guru · arahkan kursor ke batang untuk melihat nilai
+    </p>
+  </div>
   );
 }
