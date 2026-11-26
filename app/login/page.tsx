@@ -117,6 +117,7 @@ export default function LoginPage() {
   const [galeri, setGaleri] = useState<GaleriItem[]>([]);
   const [galeriLoaded, setGaleriLoaded] = useState(false);
   const [galeriLihat, setGaleriLihat] = useState<GaleriItem | null>(null);
+  const [filterTopik, setFilterTopik] = useState<string | null>(null);
   const [skList, setSkList] = useState<SkItem[]>([]);
   const [skLoaded, setSkLoaded] = useState(false);
   const [skLihat, setSkLihat] = useState<SkItem | null>(null);
@@ -370,44 +371,70 @@ export default function LoginPage() {
 
             {/* Grid layout: hero kiri besar + grid kanan */}
             <div className="p-4 lg:p-5">
-              {galeri.length === 1 ? (
-                <GaleriThumb item={galeri[0]} besar onClick={() => setGaleriLihat(galeri[0])} />
-              ) : galeri.length <= 3 ? (
-                <div className={`grid gap-3 ${galeri.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                  {galeri.map((g) => <GaleriThumb key={g.id} item={g} onClick={() => setGaleriLihat(g)} />)}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-                  {/* Hero besar */}
-                  <div className="lg:col-span-3">
-                    <GaleriThumb item={galeri[0]} besar onClick={() => setGaleriLihat(galeri[0])} />
+              {(() => {
+                const tampil = filterTopik ? galeri.filter((g) => g.topik === filterTopik) : galeri;
+                return tampil.length === 1 ? (
+                  <GaleriThumb item={tampil[0]} besar onClick={() => setGaleriLihat(tampil[0])} />
+                ) : tampil.length <= 3 ? (
+                  <div className={`grid gap-3 ${tampil.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                    {tampil.map((g) => <GaleriThumb key={g.id} item={g} onClick={() => setGaleriLihat(g)} />)}
                   </div>
-                  {/* Grid 2×2 kanan */}
-                  <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-                    {galeri.slice(1, 5).map((g, idx) => (
-                      <div key={g.id} className="relative">
-                        <GaleriThumb item={g} onClick={() => setGaleriLihat(g)} />
-                        {idx === 3 && galeri.length > 5 && (
-                          <button
-                            onClick={() => setGaleriLihat(galeri[5])}
-                            className="absolute inset-0 rounded-xl bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-1 hover:bg-black/50 transition-colors"
-                          >
-                            <span className="text-white text-2xl font-bold">+{galeri.length - 5}</span>
-                            <span className="text-white/60 text-xs">foto lainnya</span>
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+                    <div className="lg:col-span-3">
+                      <GaleriThumb item={tampil[0]} besar onClick={() => setGaleriLihat(tampil[0])} />
+                    </div>
+                    <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                      {tampil.slice(1, 5).map((g, idx) => (
+                        <div key={g.id} className="relative">
+                          <GaleriThumb item={g} onClick={() => setGaleriLihat(g)} />
+                          {idx === 3 && tampil.length > 5 && (
+                            <button
+                              onClick={() => setGaleriLihat(tampil[5])}
+                              className="absolute inset-0 rounded-xl bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-1 hover:bg-black/50 transition-colors"
+                            >
+                              <span className="text-white text-2xl font-bold">+{tampil.length - 5}</span>
+                              <span className="text-white/60 text-xs">foto lainnya</span>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
-              {/* Strip topik */}
+              {/* Strip topik — klik untuk filter foto per topik */}
               {galeri.some((g) => g.topik) && (
                 <div className="mt-4 flex items-center gap-2 flex-wrap">
                   <span className="text-white/30 text-[11px]">Topik:</span>
-                  {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).slice(0, 6).map((t) => (
-                    <span key={t} className="text-[11px] text-white/50 bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">{t}</span>
+                  <button
+                    onClick={() => setFilterTopik(null)}
+                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-all ${
+                      filterTopik === null
+                        ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
+                        : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        setFilterTopik(t === filterTopik ? null : t!);
+                        // Langsung buka foto pertama topik ini di lightbox
+                        const foto = galeri.find((g) => g.topik === t);
+                        if (foto && t !== filterTopik) setGaleriLihat(foto);
+                      }}
+                      className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-all ${
+                        filterTopik === t
+                          ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
+                          : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 cursor-pointer"
+                      }`}
+                    >
+                      {t}
+                    </button>
                   ))}
                 </div>
               )}
@@ -478,9 +505,11 @@ export default function LoginPage() {
 
         {/* Lightbox galeri (foto perbesar / video putar) — bisa digeser kiri kanan */}
         {galeriLihat && (() => {
-          const idx = galeri.findIndex((g) => g.id === galeriLihat.id);
-          const prev = idx > 0 ? galeri[idx - 1] : galeri[galeri.length - 1];
-          const next = idx < galeri.length - 1 ? galeri[idx + 1] : galeri[0];
+          const tampil = filterTopik ? galeri.filter((g) => g.topik === filterTopik) : galeri;
+          const idx = tampil.findIndex((g) => g.id === galeriLihat.id);
+          const idxAktual = idx >= 0 ? idx : 0;
+          const prev = tampil[(idxAktual - 1 + tampil.length) % tampil.length];
+          const next = tampil[(idxAktual + 1) % tampil.length];
           return (
             <div
               className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4"
@@ -493,7 +522,7 @@ export default function LoginPage() {
                     <p className="text-white text-sm font-medium truncate">
                       {galeriLihat.tipe === "video" ? "🎬 Video" : "📷 Foto"}{galeriLihat.topik ? ` — ${galeriLihat.topik}` : ""}
                     </p>
-                    <p className="text-white/40 text-xs">{idx + 1} / {galeri.length} · {galeriLihat.sumber === "pengawas" ? "Supervisor" : "Guru"}</p>
+                    <p className="text-white/40 text-xs">{idxAktual + 1} / {tampil.length} · {galeriLihat.sumber === "pengawas" ? "Supervisor" : "Guru"}</p>
                   </div>
                   <button onClick={() => setGaleriLihat(null)} className="btn btn-sm bg-white/10 text-white hover:bg-white/20 flex-shrink-0">
                     <X className="w-4 h-4" />
@@ -522,7 +551,7 @@ export default function LoginPage() {
                 )}
 
                 {/* Navigasi kiri kanan */}
-                {galeri.length > 1 && (
+                {tampil.length > 1 && (
                   <>
                     <button
                       onClick={() => setGaleriLihat(prev)}
@@ -542,14 +571,14 @@ export default function LoginPage() {
                 )}
 
                 {/* Thumbnail strip bawah */}
-                {galeri.length > 1 && (
+                {tampil.length > 1 && (
                   <div className="mt-3 flex items-center justify-center gap-2 overflow-x-auto pb-1">
-                    {galeri.map((g, i) => (
+                    {tampil.map((g, i) => (
                       <button
                         key={g.id}
                         onClick={() => setGaleriLihat(g)}
                         className={`flex-shrink-0 w-12 h-9 rounded-lg overflow-hidden border-2 transition-all ${
-                          i === idx ? "border-emerald-400 scale-110" : "border-white/10 opacity-40 hover:opacity-70"
+                          i === idxAktual ? "border-emerald-400 scale-110" : "border-white/10 opacity-40 hover:opacity-70"
                         }`}
                       >
                         {g.tipe === "foto" ? (
