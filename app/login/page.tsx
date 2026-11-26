@@ -161,13 +161,15 @@ export default function LoginPage() {
     }
   }
 
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const perGuru = (stat?.perGuru ?? []).filter((g) => g.nilai !== null);
   const agregat = stat?.ada ? stat.agregat : null;
   const distribusi = agregat?.distribusiPredikat ?? [];
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-10"
+      className="min-h-screen px-4 py-10"
       style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)" }}
     >
       {/* Background decoration */}
@@ -178,155 +180,150 @@ export default function LoginPage() {
           style={{ background: "radial-gradient(circle, #2dce89, transparent)" }} />
       </div>
 
-      <div className="relative w-full max-w-6xl">
-        {/* Header */}
-        <BrandHeader />
-
-        <div className="grid lg:grid-cols-5 gap-6 lg:gap-8 items-stretch">
-          {/* ================= PANEL STATISTIK (kiri, di bawah form di mobile) ================= */}
-          <section
-            className="order-2 lg:order-1 lg:col-span-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 p-6 lg:p-8 shadow-2xl"
-            aria-label="Hasil supervisi guru"
+      <div className="relative w-full max-w-7xl mx-auto">
+        {/* Header + tombol masuk */}
+        <div className="flex items-center justify-between mb-8">
+          <BrandHeader />
+          <button
+            onClick={() => setShowLoginModal(true)}
+            className="btn-primary px-6 py-2.5 rounded-xl text-sm font-semibold shadow-lg flex items-center gap-2 flex-shrink-0"
           >
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <h2 className="text-white text-lg font-bold flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-indigo-300" />
-                  Hasil Supervisi Guru
-                </h2>
-                <p className="text-white/40 text-xs mt-1">
-                  Rekap nilai hasil supervisi · identitas guru disamarkan
-                </p>
-              </div>
-              <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-300 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-3 py-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Nama Disamarkan
-              </span>
+            <ShieldCheck className="w-4 h-4" />
+            Masuk ke Sistem
+          </button>
+        </div>
+
+        {/* ================= PANEL STATISTIK FULL WIDTH ================= */}
+        <section
+          className="rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 p-6 lg:p-8 shadow-2xl mb-6"
+          aria-label="Hasil supervisi guru"
+        >
+          <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+            <div>
+              <h2 className="text-white text-lg font-bold flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-indigo-300" />
+                Hasil Supervisi Guru
+              </h2>
+              <p className="text-white/40 text-xs mt-1">Rekap nilai hasil supervisi · identitas guru disamarkan</p>
             </div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-300 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-3 py-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> Nama Disamarkan
+            </span>
+          </div>
 
-            {!statLoaded ? (
-              <div className="h-64 flex items-center justify-center text-white/40 text-sm">
-                <Loader2 className="w-5 h-5 animate-spin mr-2" /> Memuat data supervisi...
+          {!statLoaded ? (
+            <div className="h-64 flex items-center justify-center text-white/40 text-sm">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Memuat data supervisi...
+            </div>
+          ) : !stat?.ada || perGuru.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center text-center text-white/40 text-sm px-4">
+              <ClipboardCheck className="w-10 h-10 mb-3 text-white/20" />
+              Belum ada hasil supervisi yang dipublikasikan.
+            </div>
+          ) : (
+            <>
+              {/* Ringkasan angka — 4 kartu */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {[
+                  { label: "Rata-rata Nilai", value: agregat?.rataRata != null ? agregat.rataRata.toFixed(1) : "—", sub: "dari 100", color: "from-indigo-500/20 to-indigo-600/10", border: "border-indigo-500/30", text: "text-indigo-300" },
+                  { label: "Guru Disupervisi", value: String(agregat?.jumlahGuru ?? 0), sub: "orang", color: "from-emerald-500/20 to-emerald-600/10", border: "border-emerald-500/30", text: "text-emerald-300" },
+                  { label: "Nilai Tertinggi", value: agregat?.tertinggi != null ? agregat.tertinggi.toFixed(0) : "—", sub: "dari 100", color: "from-amber-500/20 to-amber-600/10", border: "border-amber-500/30", text: "text-amber-300" },
+                  { label: "Nilai Terendah", value: agregat?.terendah != null ? agregat.terendah.toFixed(0) : "—", sub: "dari 100", color: "from-rose-500/20 to-rose-600/10", border: "border-rose-500/30", text: "text-rose-300" },
+                ].map((k) => (
+                  <div key={k.label} className={`rounded-xl bg-gradient-to-br ${k.color} border ${k.border} p-4 text-center`}>
+                    <p className={`text-3xl font-bold ${k.text} leading-tight`}>{k.value}</p>
+                    <p className="text-white/30 text-[11px] mt-0.5">{k.sub}</p>
+                    <p className="text-white/60 text-xs font-medium mt-1">{k.label}</p>
+                  </div>
+                ))}
               </div>
-            ) : !stat?.ada || perGuru.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center text-center text-white/40 text-sm px-4">
-                <ClipboardCheck className="w-10 h-10 mb-3 text-white/20" />
-                Belum ada hasil supervisi yang dipublikasikan.
-                <span className="text-white/25 text-xs mt-1">Hasil akan tampil di sini setelah proses supervisi selesai.</span>
-              </div>
-            ) : (
-              <>
-                {/* Ringkasan angka */}
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
-                    <p className="text-2xl lg:text-3xl font-bold text-white leading-tight">
-                      {agregat?.rataRata != null ? agregat.rataRata.toFixed(1) : "—"}
-                    </p>
-                    <p className="text-white/40 text-[11px] mt-0.5">Rata-rata / 100</p>
+
+              {/* Grafik full-width + side panel */}
+              <div className="grid lg:grid-cols-3 gap-5">
+                {/* Bar chart — 2/3 lebar */}
+                <div className="lg:col-span-2 rounded-xl bg-white/5 border border-white/10 p-5">
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <p className="text-white/80 text-sm font-semibold">Nilai per Guru (Anonim)</p>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      {[["#2dce89","Sangat Baik"],["#5e72e4","Baik"],["#fb6340","Cukup"],["#f5365c","Kurang"]].map(([c,l]) => (
+                        <span key={l} className="flex items-center gap-1 text-white/50">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />{l}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
-                    <p className="text-2xl lg:text-3xl font-bold text-white leading-tight flex items-center justify-center gap-1.5">
-                      <Users className="w-5 h-5 text-indigo-300" />{agregat?.jumlahGuru ?? 0}
-                    </p>
-                    <p className="text-white/40 text-[11px] mt-0.5">Guru Disupervisi</p>
-                  </div>
-                  <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center">
-                    <p className="text-2xl lg:text-3xl font-bold text-white leading-tight flex items-center justify-center gap-1.5">
-                      <TrendingUp className="w-5 h-5 text-emerald-300" />{agregat?.tertinggi != null ? agregat.tertinggi.toFixed(0) : "—"}
-                    </p>
-                    <p className="text-white/40 text-[11px] mt-0.5">Nilai Tertinggi</p>
-                  </div>
-                </div>
-
-                {/* Grafik - dimuat lazy (recharts terpisah dari bundle awal) */}
-                <ChartLazy
-                  perGuru={perGuru.map((g) => ({ label: g.label, nilai: g.nilai, predikat: g.predikat }))}
-                  distribusi={distribusi}
-                  rataTahap={{
-                    pra: agregat?.rataRataTahap.pra ?? null,
-                    observasi: agregat?.rataRataTahap.observasi ?? null,
-                    pasca: agregat?.rataRataTahap.pasca ?? null,
-                  }}
- />
-              </>
-            )}
-          </section>
-
-          {/* ================= FORM LOGIN (kanan, di atas panel statistik di mobile) ================= */}
-          <section className="order-1 lg:order-2 lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-2xl p-8">
-              <h2 className="text-gray-800 text-xl font-bold mb-1">Selamat Datang</h2>
-              <p className="text-gray-400 text-sm mb-6">Masuk ke akun Anda untuk melanjutkan</p>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="form-label">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nama@email.com"
-                    className="form-input"
-                    required
-                    autoFocus
+                  <ChartLazy
+                    perGuru={perGuru.map((g) => ({ label: g.label, nilai: g.nilai, predikat: g.predikat }))}
+                    distribusi={distribusi}
+                    rataTahap={{
+                      pra: agregat?.rataRataTahap.pra ?? null,
+                      observasi: agregat?.rataRataTahap.observasi ?? null,
+                      pasca: agregat?.rataRataTahap.pasca ?? null,
+                    }}
                   />
                 </div>
 
-                <div>
-                  <label className="form-label">Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPass ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="form-input pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPass(!showPass)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                {/* Side panel — 1/3 lebar */}
+                <div className="space-y-4">
+                  {/* Distribusi predikat */}
+                  <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+                    <p className="text-white/80 text-sm font-semibold mb-3">Distribusi Predikat</p>
+                    <div className="space-y-2.5">
+                      {[
+                        { p: "SANGAT_BAIK", label: "Sangat Baik", color: "#2dce89", bg: "bg-emerald-500/20" },
+                        { p: "BAIK", label: "Baik", color: "#5e72e4", bg: "bg-indigo-500/20" },
+                        { p: "CUKUP", label: "Cukup", color: "#fb6340", bg: "bg-orange-500/20" },
+                        { p: "KURANG", label: "Kurang", color: "#f5365c", bg: "bg-rose-500/20" },
+                      ].map(({ p, label, color, bg }) => {
+                        const d = distribusi.find((x) => x.predikat === p);
+                        const jumlah = d?.jumlah ?? 0;
+                        const total = distribusi.reduce((a, x) => a + x.jumlah, 0);
+                        const pct = total > 0 ? (jumlah / total) * 100 : 0;
+                        return (
+                          <div key={p}>
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="flex items-center gap-1.5 text-white/70">
+                                <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                                {label}
+                              </span>
+                              <span className="text-white font-semibold">{jumlah} guru</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Rata-rata per tahap */}
+                  <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+                    <p className="text-white/80 text-sm font-semibold mb-3">Rata-rata per Tahap</p>
+                    <div className="space-y-3">
+                      {([
+                        ["Pra Observasi", agregat?.rataRataTahap.pra, "#5e72e4"],
+                        ["Observasi Kelas", agregat?.rataRataTahap.observasi, "#2dce89"],
+                        ["Pasca Supervisi", agregat?.rataRataTahap.pasca, "#fb6340"],
+                      ] as [string, number | null | undefined, string][]).map(([tahap, nilai, color]) => (
+                        <div key={tahap}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-white/60">{tahap}</span>
+                            <span className="text-white font-bold">{nilai != null ? nilai.toFixed(1) : "—"}</span>
+                          </div>
+                          <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${nilai ?? 0}%`, background: `linear-gradient(90deg, ${color}, ${color}99)` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn-primary py-3 rounded-lg flex items-center justify-center gap-2 mt-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    "Masuk"
-                  )}
-                </button>
-              </form>
-
-              {/* Lupa password */}
-              <div className="mt-4 text-right">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  Lupa password?
-                </Link>
               </div>
-            </div>
-          </section>
-        </div>
+            </>
+          )}
+        </section>
 
         {/* ================= GALERI DOKUMENTASI OBSERVASI KELAS ================= */}
         {!galeriLoaded ? (
@@ -651,5 +648,93 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+
+      {/* ================= MODAL LOGIN POPUP ================= */}
+      {showLoginModal && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowLoginModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Tutup */}
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Logo kecil */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #5e72e4, #825ee4)" }}>
+                <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-gray-800 text-lg font-bold leading-tight">Selamat Datang</h2>
+                <p className="text-gray-400 text-xs">Masuk ke Sistem Supervisi Guru</p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nama@email.com"
+                  className="form-input"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="form-label">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPass ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="form-input pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full btn-primary py-3 rounded-xl flex items-center justify-center gap-2 mt-2 text-sm font-semibold"
+              >
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Memproses...</> : "Masuk"}
+              </button>
+            </form>
+
+            <div className="mt-4 text-right">
+              <Link href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                Lupa password?
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
   );
 }
