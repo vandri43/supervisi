@@ -647,7 +647,6 @@ export default function LoginPage() {
           © {new Date().getFullYear()} Sistem Supervisi Guru
         </p>
       </div>
-    </div>
 
       {/* ================= MODAL LOGIN POPUP ================= */}
       {showLoginModal && (
@@ -736,5 +735,6 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+    </div>
   );
 }
