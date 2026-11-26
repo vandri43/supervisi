@@ -524,57 +524,101 @@ export default function LoginPage() {
           </section>
         )}
 
-        {/* Lightbox galeri (foto perbesar / video putar) */}
-        {galeriLihat && (
-          <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4" onClick={() => setGaleriLihat(null)}>
-            <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                  <p className="text-white text-sm font-medium truncate">
-                    {galeriLihat.tipe === "video" ? "Video" : "Foto"} dokumentasi{galeriLihat.topik ? ` — ${galeriLihat.topik}` : ""}
-                  </p>
-                  <p className="text-white/50 text-xs">Kegiatan supervisi guru di sekolah</p>
+        {/* Lightbox galeri (foto perbesar / video putar) — bisa digeser kiri kanan */}
+        {galeriLihat && (() => {
+          const idx = galeri.findIndex((g) => g.id === galeriLihat.id);
+          const prev = idx > 0 ? galeri[idx - 1] : galeri[galeri.length - 1];
+          const next = idx < galeri.length - 1 ? galeri[idx + 1] : galeri[0];
+          return (
+            <div
+              className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4"
+              onClick={() => setGaleriLihat(null)}
+            >
+              <div className="max-w-4xl w-full relative" onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-medium truncate">
+                      {galeriLihat.tipe === "video" ? "🎬 Video" : "📷 Foto"}{galeriLihat.topik ? ` — ${galeriLihat.topik}` : ""}
+                    </p>
+                    <p className="text-white/40 text-xs">{idx + 1} / {galeri.length} · {galeriLihat.sumber === "pengawas" ? "Supervisor" : "Guru"}</p>
+                  </div>
+                  <button onClick={() => setGaleriLihat(null)} className="btn btn-sm bg-white/10 text-white hover:bg-white/20 flex-shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => setGaleriLihat(null)} className="btn btn-sm bg-white/10 text-white hover:bg-white/20">
-                  <X className="w-4 h-4" />
-                </button>
+
+                {/* Media */}
+                {galeriLihat.tipe === "link" && galeriLihat.provider === "YOUTUBE" && galeriLihat.providerId ? (
+                  <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+                    <iframe src={`https://www.youtube.com/embed/${galeriLihat.providerId}`} title={galeriLihat.topik ?? "Video"} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
+                  </div>
+                ) : galeriLihat.tipe === "link" && galeriLihat.provider === "GDRIVE" && galeriLihat.providerId ? (
+                  <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+                    <iframe src={`https://drive.google.com/file/d/${galeriLihat.providerId}/preview`} title={galeriLihat.topik ?? "Drive"} allow="autoplay" allowFullScreen className="w-full h-full" />
+                  </div>
+                ) : galeriLihat.tipe === "link" ? (
+                  <div className="p-8 text-center bg-white/10 rounded-xl">
+                    <p className="text-white/70 text-sm mb-3">Pratinjau tidak tersedia.</p>
+                    <a href={galeriLihat.url} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex">Buka Link</a>
+                  </div>
+                ) : galeriLihat.tipe === "video" ? (
+                  <video src={galeriLihat.url} controls autoPlay playsInline className="w-full max-h-[75vh] rounded-xl bg-black" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={galeriLihat.url} alt={galeriLihat.topik ?? "Dokumentasi"} className="w-full max-h-[75vh] object-contain rounded-xl" />
+                )}
+
+                {/* Navigasi kiri kanan */}
+                {galeri.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setGaleriLihat(prev)}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-14 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors"
+                      aria-label="Sebelumnya"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-white" />
+                    </button>
+                    <button
+                      onClick={() => setGaleriLihat(next)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-14 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors"
+                      aria-label="Berikutnya"
+                    >
+                      <ChevronRight className="w-5 h-5 text-white" />
+                    </button>
+                  </>
+                )}
+
+                {/* Thumbnail strip bawah */}
+                {galeri.length > 1 && (
+                  <div className="mt-3 flex items-center justify-center gap-2 overflow-x-auto pb-1">
+                    {galeri.map((g, i) => (
+                      <button
+                        key={g.id}
+                        onClick={() => setGaleriLihat(g)}
+                        className={`flex-shrink-0 w-12 h-9 rounded-lg overflow-hidden border-2 transition-all ${
+                          i === idx ? "border-emerald-400 scale-110" : "border-white/10 opacity-40 hover:opacity-70"
+                        }`}
+                      >
+                        {g.tipe === "foto" ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={g.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        ) : g.tipe === "link" && g.provider === "YOUTUBE" && g.providerId ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`https://i.ytimg.com/vi/${g.providerId}/default.jpg`} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                            <Film className="w-3 h-3 text-white/50" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {galeriLihat.tipe === "link" && galeriLihat.provider === "YOUTUBE" && galeriLihat.providerId ? (
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${galeriLihat.providerId}`}
-                    title={galeriLihat.topik ?? "Video YouTube"}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
-                </div>
-              ) : galeriLihat.tipe === "link" && galeriLihat.provider === "GDRIVE" && galeriLihat.providerId ? (
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-                  <iframe
-                    src={`https://drive.google.com/file/d/${galeriLihat.providerId}/preview`}
-                    title={galeriLihat.topik ?? "Dokumen Drive"}
-                    allow="autoplay"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
-                </div>
-              ) : galeriLihat.tipe === "link" ? (
-                <div className="p-8 text-center bg-white/10 rounded-xl">
-                  <p className="text-white/70 text-sm mb-3">Pratinjau tidak tersedia untuk link ini.</p>
-                  <a href={galeriLihat.url} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex">
-                    Buka Link
-                  </a>
-                </div>
-              ) : galeriLihat.tipe === "video" ? (
-                <video src={galeriLihat.url} controls autoPlay playsInline className="w-full max-h-[75vh] rounded-xl bg-black" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={galeriLihat.url} alt={galeriLihat.topik ?? "Dokumentasi supervisi"} className="w-full max-h-[75vh] object-contain rounded-xl" />
-              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Lightbox dokumen SK (PDF embed / gambar perbesar) */}
         {skLihat && (
