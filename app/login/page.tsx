@@ -112,6 +112,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [stat, setStat] = useState<Statistik | null>(null);
   const [statLoaded, setStatLoaded] = useState(false);
   const [galeri, setGaleri] = useState<GaleriItem[]>([]);
@@ -160,8 +161,6 @@ export default function LoginPage() {
       router.refresh();
     }
   }
-
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const perGuru = (stat?.perGuru ?? []).filter((g) => g.nilai !== null);
   const agregat = stat?.ada ? stat.agregat : null;
