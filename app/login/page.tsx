@@ -402,43 +402,52 @@ export default function LoginPage() {
               })()}
 
               {/* Strip topik — klik untuk filter foto per topik */}
-              {galeri.some((g) => g.topik) && (
-                <div className="mt-4">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-                    <span className="text-white/30 text-[11px] flex-shrink-0">Topik:</span>
-                    <button
-                      onClick={() => setFilterTopik(null)}
-                      className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1 border transition-all ${
-                        filterTopik === null
-                          ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
-                          : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
-                      }`}
+              {galeri.some((g) => g.topik) && (() => {
+                const topikList = Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))) as string[];
+                return (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-white/30 text-[11px]">Topik ({topikList.length}):</span>
+                      <span className="text-white/20 text-[10px]">← geser untuk melihat semua →</span>
+                    </div>
+                    <div
+                      className="flex items-center gap-2 overflow-x-auto pb-2"
+                      style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.15) transparent" }}
                     >
-                      Semua ({galeri.length})
-                    </button>
-                    {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).map((t) => {
-                      const jumlah = galeri.filter((g) => g.topik === t).length;
-                      return (
-                        <button
-                          key={t}
-                          onClick={() => {
-                            setFilterTopik(t === filterTopik ? null : t!);
-                            const foto = galeri.find((g) => g.topik === t);
-                            if (foto && t !== filterTopik) setGaleriLihat(foto);
-                          }}
-                          className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1 border transition-all whitespace-nowrap ${
-                            filterTopik === t
-                              ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
-                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
-                          }`}
-                        >
-                          {t} ({jumlah})
-                        </button>
-                      );
-                    })}
+                      <button
+                        onClick={() => setFilterTopik(null)}
+                        className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1.5 border transition-all font-medium ${
+                          filterTopik === null
+                            ? "bg-emerald-400/30 border-emerald-400/60 text-emerald-200"
+                            : "bg-white/5 border-white/15 text-white/50 hover:bg-white/10 hover:text-white/80"
+                        }`}
+                      >
+                        🗂 Semua ({galeri.length})
+                      </button>
+                      {topikList.map((t) => {
+                        const jumlah = galeri.filter((g) => g.topik === t).length;
+                        return (
+                          <button
+                            key={t}
+                            onClick={() => {
+                              setFilterTopik(t === filterTopik ? null : t);
+                              const foto = galeri.find((g) => g.topik === t);
+                              if (foto && t !== filterTopik) setGaleriLihat(foto);
+                            }}
+                            className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1.5 border transition-all whitespace-nowrap ${
+                              filterTopik === t
+                                ? "bg-emerald-400/30 border-emerald-400/60 text-emerald-200 font-medium"
+                                : "bg-white/5 border-white/15 text-white/50 hover:bg-white/10 hover:text-white/80"
+                            }`}
+                          >
+                            📷 {t} <span className="opacity-60">({jumlah})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Footer */}
