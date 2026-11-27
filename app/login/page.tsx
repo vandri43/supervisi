@@ -363,6 +363,12 @@ export default function LoginPage() {
                     <Film className="w-3 h-3" /> {galeri.filter((g) => g.tipe !== "foto").length} Video/Link
                   </span>
                 )}
+                <span className="inline-flex items-center gap-1 text-white/40 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
+                  📁 {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).length} Topik
+                </span>
+                    <Film className="w-3 h-3" /> {galeri.filter((g) => g.tipe !== "foto").length} Video/Link
+                  </span>
+                )}
               </div>
             </div>
 
@@ -381,16 +387,16 @@ export default function LoginPage() {
                     <div className="lg:col-span-3">
                       <GaleriThumb item={tampil[0]} besar onClick={() => setGaleriLihat(tampil[0])} />
                     </div>
-                    <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-                      {tampil.slice(1, 5).map((g, idx) => (
+                    <div className="lg:col-span-2 grid grid-cols-2 grid-rows-4 gap-3">
+                      {tampil.slice(1, 9).map((g, idx) => (
                         <div key={g.id} className="relative">
                           <GaleriThumb item={g} onClick={() => setGaleriLihat(g)} />
-                          {idx === 3 && tampil.length > 5 && (
+                          {idx === 7 && tampil.length > 9 && (
                             <button
-                              onClick={() => setGaleriLihat(tampil[5])}
+                              onClick={() => setGaleriLihat(tampil[9])}
                               className="absolute inset-0 rounded-xl bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-1 hover:bg-black/50 transition-colors"
                             >
-                              <span className="text-white text-2xl font-bold">+{tampil.length - 5}</span>
+                              <span className="text-white text-2xl font-bold">+{tampil.length - 9}</span>
                               <span className="text-white/60 text-xs">foto lainnya</span>
                             </button>
                           )}

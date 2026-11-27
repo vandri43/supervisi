@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // milik guru yang SUDAH DIVERIFIKASI (status DITERIMA). Nama guru tidak ditampilkan.
 // Cache in-memory 60 detik — galeri login diakses semua pengunjung
 let cacheResp: { data: unknown; expire: number } | null = null;
-const CACHE_MS = 60_000;
+const CACHE_MS = 5 * 60_000;
 
 export async function GET() {
   if (cacheResp && cacheResp.expire > Date.now()) {
@@ -19,13 +19,13 @@ export async function GET() {
     prisma.fotoSupervisi.findMany({
       where: { uploader: { role: { in: ["ADMIN", "SUPERVISOR"] } } },
       orderBy: { createdAt: "desc" },
-      take: 24,
+      take: 200,
       include: { siklus: { select: { topikPembelajaran: true } } },
     }),
     prisma.fotoSupervisi.findMany({
       where: { uploader: { role: "GURU" } },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 200,
       include: { siklus: { select: { topikPembelajaran: true } } },
     }),
     prisma.bukti.findMany({
@@ -38,7 +38,7 @@ export async function GET() {
     }),
     prisma.mediaLink.findMany({
       orderBy: { createdAt: "desc" },
-      take: 12,
+      take: 100,
       include: { siklus: { select: { topikPembelajaran: true } } },
     }),
   ]);
@@ -108,7 +108,6 @@ export async function GET() {
 
   const items = [...itemFiles, ...itemLinks]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 24)
     .map((m) => ({
       id: m.id,
       url: m.url,
