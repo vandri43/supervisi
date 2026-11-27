@@ -403,36 +403,40 @@ export default function LoginPage() {
 
               {/* Strip topik — klik untuk filter foto per topik */}
               {galeri.some((g) => g.topik) && (
-                <div className="mt-4 flex items-center gap-2 flex-wrap">
-                  <span className="text-white/30 text-[11px]">Topik:</span>
-                  <button
-                    onClick={() => setFilterTopik(null)}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-all ${
-                      filterTopik === null
-                        ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
-                        : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
-                    }`}
-                  >
-                    Semua
-                  </button>
-                  {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).map((t) => (
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                    <span className="text-white/30 text-[11px] flex-shrink-0">Topik:</span>
                     <button
-                      key={t}
-                      onClick={() => {
-                        setFilterTopik(t === filterTopik ? null : t!);
-                        // Langsung buka foto pertama topik ini di lightbox
-                        const foto = galeri.find((g) => g.topik === t);
-                        if (foto && t !== filterTopik) setGaleriLihat(foto);
-                      }}
-                      className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-all ${
-                        filterTopik === t
+                      onClick={() => setFilterTopik(null)}
+                      className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1 border transition-all ${
+                        filterTopik === null
                           ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
-                          : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 cursor-pointer"
+                          : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
                       }`}
                     >
-                      {t}
+                      Semua ({galeri.length})
                     </button>
-                  ))}
+                    {Array.from(new Set(galeri.map((g) => g.topik).filter(Boolean))).map((t) => {
+                      const jumlah = galeri.filter((g) => g.topik === t).length;
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            setFilterTopik(t === filterTopik ? null : t!);
+                            const foto = galeri.find((g) => g.topik === t);
+                            if (foto && t !== filterTopik) setGaleriLihat(foto);
+                          }}
+                          className={`flex-shrink-0 text-[11px] rounded-full px-3 py-1 border transition-all whitespace-nowrap ${
+                            filterTopik === t
+                              ? "bg-emerald-400/20 border-emerald-400/50 text-emerald-300 font-medium"
+                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
+                          }`}
+                        >
+                          {t} ({jumlah})
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
